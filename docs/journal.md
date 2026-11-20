@@ -11,7 +11,7 @@ Pouvoir prouver **qui a regardé, quand**, et **quand la supervision a été cou
 | Code | Événement | Données complémentaires |
 |---|---|---|
 | 0x01 | APP_STARTED | — |
-| 0x02 | PAIRED | Empreinte de `P_pub` (32) |
+| 0x02 | PAIRED | `P_pub` complète en x963 (65) |
 | 0x03 | REVOKED | Empreinte de `P_pub` (32) |
 | 0x04 | SESSION_OPENED | sessionID (8), `TH` (32), `sigP` (64) : preuve signée par le parent |
 | 0x05 | SESSION_CLOSED | sessionID (8), raison (1) |
@@ -19,7 +19,7 @@ Pouvoir prouver **qui a regardé, quand**, et **quand la supervision a été cou
 | 0x08 | PERMISSION_DENIED | — |
 | 0x09 | AUTH_FAILURES | Nombre (2), regroupé sur 10 s |
 | 0x0A | PURGE_CHECKPOINT | seq et hash de la dernière entrée purgée |
-| 0x20 / 0x21 | LOCK / UNLOCK (extension) | Durée (4), `nC` (32), `sigP` (64) |
+| 0x20 / 0x21 | LOCK / UNLOCK (extension) | sessionID (8), durée (4), `nC` (32), `sigP` (64) |
 
 **Jamais dans le journal :** images, noms, nom de l'ordinateur, adresses réseau, clés privées ou de session, contenu de l'écran.
 
@@ -46,9 +46,13 @@ Pour chaque entrée, dans l'ordre :
 2. `prevHash` == hash de l'entrée précédente ;
 3. le hash recalculé correspond ;
 4. `sig` est valide avec `M_pub` ;
-5. pour `SESSION_OPENED` et `LOCK` : `sigP` est valide avec `P_pub` sur le contexte signé (voir [protocole.md](protocole.md)).
+5. pour `SESSION_OPENED`, `LOCK` et `UNLOCK` : `sigP` est valide sur le contexte signé (voir [protocole.md](protocole.md)), avec la `P_pub` de l'entrée `PAIRED` **la plus récente qui précède** cette entrée.
 
 Premier échec → « Journal altéré à l'entrée n ».
+
+**Pourquoi `P_pub` complète dans `PAIRED`, et non son empreinte :** une empreinte (hash) ne permet pas de vérifier une signature. Or `REVOKED` et un nouvel appairage suppriment `P_pub` du Keychain du Mac. Sans copie dans le journal, les preuves `sigP` des visionnages passés deviendraient invérifiables, ce qui affaiblirait R1 exactement quand il compte (litige après révocation). Une clé **publique** n'est ni un secret ni une donnée personnelle directe : la minimisation est respectée.
+
+**Pourquoi `sessionID` dans `LOCK` et `UNLOCK` :** il fait partie du contexte signé par le parent (`"OpenEye/v1/cmd" ‖ sessionID ‖ nC ‖ typ ‖ durée`). Sans lui, l'entrée seule ne permet pas de reconstituer les octets signés.
 
 ## 5. Ce que le chaînage détecte, et ce qu'il ne détecte pas
 
@@ -57,7 +61,7 @@ Premier échec → « Journal altéré à l'entrée n ».
 | Modifier une entrée | ✅ | Hash et signature |
 | Supprimer ou insérer au milieu | ✅ | `seq` et `prevHash` |
 | Inventer une entrée « le parent a regardé » | ✅ | `sigP` impossible à produire sans Face ID et la Secure Enclave du parent |
-| Supprimer **les dernières** entrées (troncature) | ⚠️ Partiellement | **Ancre côté iPhone** : chaque heartbeat transmet `seq` et le hash de tête. L'iPhone garde le maximum vu. Une troncature **après** la dernière connexion de l'iPhone reste indétectable. |
+| Supprimer **les dernières** entrées (troncature) | ⚠️ Partiellement | **Ancre côté iPhone** : chaque heartbeat transmet `seq` et le hash de tête. L'iPhone garde le maximum vu, puis à la session suivante demande le hash à cette position (`JournalAnchorRequest`, voir [protocole.md](protocole.md) §5). Une troncature **après** la dernière connexion de l'iPhone reste indétectable. |
 | Enfant administrateur qui efface tout le journal et la clé du Mac | ⚠️ | L'iPhone détecte la clé du Mac changée ou le journal plus court que l'ancre. On ne peut pas l'empêcher (limite assumée). |
 
 **Pourquoi le dire :** le dossier initial affirmait « toute suppression est détectable ». C'est faux pour la fin du journal sans ancre externe. Le jury appréciera qu'on connaisse la limite exacte.

@@ -43,6 +43,14 @@ Seules des clés publiques et des nonces circulent : la confidentialité n'est p
 
 `K_mac = HKDF<SHA256>(K_pair, salt: pairingID, info: "OpenEye/v1/pair-mac", 32 octets)`
 
+`hmac = HMAC_Kmac("OpenEye/v1/pair-request" ‖ en-tête(24) ‖ lp(pairingID) ‖ lp(P_pub) ‖ lp(C))`, où l'en-tête est celui du paquet `PairRequest` lui-même (`typ = 0x01`, `sessionID = 0`, `counter = 0`, `len = 145`).
+
+**Pourquoi cette forme exacte :**
+
+- **le libellé** sépare ce HMAC de tout autre usage de `K_mac` (séparation de domaine, comme pour les signatures) ;
+- **l'en-tête** lie la version et le type au HMAC : on ne peut pas faire passer ces octets pour un autre message ni pour une autre version du protocole ;
+- **`lp`** reprend l'encodage de `TP` et `TH` : un seul encodeur (`Crypto/Transcript`), testé une fois par vecteurs connus, sert partout.
+
 ```text
  iPhone                                                                 Mac
    │ scan QR → M_pub, pairingID, K_pair (vérifie expiry, version)        │
@@ -181,6 +189,8 @@ sessionID = 8 premiers octets de SHA256("OpenEye/v1/sid" ‖ TH)
 | 0x13 | VideoFragment | M→I | ts(8) ‖ frameID(4) ‖ fragIndex(2) ‖ fragCount(2) ‖ flags(1) ‖ data |
 | 0x14 | Keepalive | I→M | ts(8) |
 | 0x15 | Close | les deux | ts(8) ‖ reason(1) |
+| 0x16 | JournalAnchorRequest | I→M | ts(8) ‖ seq(8) |
+| 0x17 | JournalAnchorProof | M→I | ts(8) ‖ seq(8) ‖ status(1) ‖ hash(32) |
 | 0x20–0x23 | Lock / Unlock / CmdChallenge / CmdResult | extension J4 | voir §6 |
 
 - Toutes les tailles fixes sont **exactes**. Tout autre valeur entraîne le rejet.
@@ -197,8 +207,8 @@ Chaque étape **jette** le paquet en cas d'échec. Rien n'est modifié dans l'é
 3. `typ` connu **et attendu dans l'état courant** (par exemple pas de `VideoFragment` avant `SessionReady`, pas de `Hello` pendant une session). Sens correct.
 4. `len` == taille totale − 24 (− 16 si chiffré).
 5. Pour typ ≥ 0x10 : `sessionID` == session courante.
-6. Pour typ ≥ 0x10 : `counter == dernierAccepté + 1` (transport fiable et ordonné, voir architecture §6).
-7. Pour typ ≥ 0x10 : `AES.GCM.open(sealedBox, using: clé_du_sens, authenticating: en-tête)`. En cas d'échec, compter l'échec, et au-delà de 20 en 10 s, **fermer la session**.
+6. Pour typ ≥ 0x10 : `counter == dernierAccepté + 1` (transport fiable et ordonné, voir architecture §6). Sinon, le paquet est jeté (pas de fermeture immédiate).
+7. Pour typ ≥ 0x10 : `AES.GCM.open(sealedBox, using: clé_du_sens, authenticating: en-tête)`.
 8. **Seulement maintenant** : `dernierAccepté = counter`.
 9. Analyser le corps avec ses bornes de type. Vérifier `|maintenant − ts| ≤ 30 s` et `ts ≥ dernier ts reçu` de ce pair.
 
@@ -207,7 +217,13 @@ Chaque étape **jette** le paquet en cas d'échec. Rien n'est modifié dans l'é
 - Les étapes 1 à 6 sont des comparaisons quasi gratuites : un flot de paquets invalides ne coûte presque rien.
 - On ne met à jour le compteur **qu'après** l'authentification (étape 8). Sinon, un attaquant pourrait envoyer un faux paquet avec un compteur énorme et bloquer tous les vrais paquets suivants.
 
-**Note sur la règle « exactement +1 » :** grâce à elle, un paquet supprimé en transit est aussi détecté (T3). Comme le transport est fiable, un trou signifie une attaque ou une panne : la session est fermée.
+**Compteur d'échecs :** pendant une session établie, **tout rejet** (étapes 1 à 7 et 9) compte comme un échec. Au 20e échec en 10 s, la session est fermée (`Close`, clés effacées) et l'incident est journalisé une seule fois (`AUTH_FAILURES`).
+
+**Pourquoi tout rejet compte :** sur un transport fiable et chiffré, un pair légitime n'envoie jamais de paquet malformé ni hors séquence. Tout rejet est donc une anomalie (attaque ou panne).
+
+**Note sur la règle « exactement +1 » :** grâce à elle, un paquet supprimé en transit est détecté (T3). Tous les paquets suivants ont un compteur décalé, sont rejetés et comptés : la session se ferme au 20e échec, et l'iPhone passe en **Injoignable** au bout de 6 s sans paquet authentifié.
+
+**Pourquoi ne pas fermer dès le premier compteur faux :** à l'étape 6, l'en-tête n'est **pas encore authentifié** (AES-GCM vient à l'étape 7). Fermer sur une donnée non authentifiée laisserait un seul faux paquet piloter l'état de la session. Règle générale : une donnée non authentifiée ne fait évoluer l'état que par le compteur d'échecs, qui est borné.
 
 ### 4.5 Vidéo : découpage et réassemblage (D3)
 
@@ -238,8 +254,16 @@ Chaque étape **jette** le paquet en cas d'échec. Rien n'est modifié dans l'é
 
 Le `Heartbeat` (toutes les 2 s) transporte `journalSeq` et `journalHead` (hash de la dernière entrée du journal du Mac).
 
-- L'iPhone garde la plus grande valeur reçue dans son Keychain.
-- À la session suivante, si le journal du Mac a un `seq` inférieur, ou si le hash à ce `seq` diffère, l'iPhone affiche « Journal du Mac altéré ».
+- L'iPhone garde la plus grande paire (`seq`, `hash`) reçue dans son Keychain : c'est l'**ancre**.
+- À la session suivante, juste après `SessionReady`, l'iPhone envoie **une seule fois** `JournalAnchorRequest { seq = seq de l'ancre }`. Le Mac répond `JournalAnchorProof` :
+  - `status = 0` : l'entrée existe, `hash` est son hash ;
+  - `status = 1` : l'entrée a été purgée (conservation de 30 jours), `hash` vaut 32 zéros.
+- L'iPhone affiche « Journal du Mac altéré » si le premier `Heartbeat` donne un `journalSeq` inférieur à l'ancre, ou si `status = 0` avec un `hash` différent de l'ancre. Avec `status = 1`, il affiche « Vérification impossible : ancre purgée », ce qui n'est **pas** une alerte d'altération.
+- Un second `JournalAnchorRequest` dans la même session est un type inattendu (étape 3) : rejeté et compté.
+
+**Pourquoi un message dédié :** le heartbeat ne donne que la **tête** du journal. Or, après une troncature, de nouvelles entrées (au minimum `SESSION_OPENED`) font repasser `seq` au-dessus de l'ancre. Sans comparer le hash **à la position de l'ancre**, la troncature passerait inaperçue. La réponse voyage dans le canal chiffré et authentifié par la clé de session du Mac : pas besoin d'une signature en plus.
+
+**Pourquoi « purgée » n'est pas une alerte :** l'entrée ancrée est la dernière vue à la session précédente. Elle n'est purgée que si le parent ne s'est pas connecté depuis plus de 30 jours. C'est une limite, à citer à l'oral.
 
 **Pourquoi :** c'est le « point d'ancrage externe » qui manquait pour détecter une **troncature** du journal (STRIDE T4), voir [journal.md](journal.md).
 

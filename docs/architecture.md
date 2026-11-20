@@ -118,8 +118,8 @@ Statut : **brouillon B, à relire par A** · Références : [stride.md](stride.m
 - **Chiffrement Multipeer :** `.required`, en défense en profondeur. **On ne compte pas dessus :** il n'authentifie personne (pas d'identité). Toute la sécurité repose sur notre propre canal.
 - **Mode d'envoi :** `.reliable` (ordonné, sans perte) pour tous les messages au MVP.
   **Pourquoi :** cela permet un anti-rejeu strict, où chaque compteur vaut exactement le précédent + 1, ce qui est le plus simple à prouver. En cas d'engorgement, c'est l'émetteur qui jette des images (file bornée). Le mode `.unreliable` avec fenêtre glissante est une extension (débit adaptatif).
-- **Connexions :** le Mac accepte une seule connexion à la fois, et le handshake doit aboutir en 10 s, sinon déconnexion.
-  **Pourquoi :** le Mac ne peut pas savoir *avant* le handshake qui l'invite. Il borne donc le coût d'un intrus (STRIDE D2).
+- **Connexions :** le Mac accepte une seule connexion à la fois. Le `Hello` doit arriver dans les **10 s** qui suivent la connexion, puis l'`Auth` dans les **30 s** qui suivent l'envoi du `Challenge`. Sinon, déconnexion.
+  **Pourquoi deux délais :** le Mac ne peut pas savoir *avant* le handshake qui l'invite. Il borne donc le coût d'un intrus (STRIDE D2). Envoyer `Hello` est automatique, d'où un délai court de 10 s. Entre `Challenge` et `Auth`, un humain doit passer Face ID, éventuellement après un échec, d'où 30 s. C'est aussi la durée de vie du défi `nM` (E2).
 
 **Dépréciation :** Multipeer est déprécié depuis Xcode 27 ([TN3213](https://developer.apple.com/documentation/technotes/tn3213-moving-from-multipeer-connectivity-to-network-framework)). Grâce au protocole `Transport`, le passer à `Network.framework` ne touche ni au protocole ni à la crypto. On garde Multipeer au MVP parce que le dossier le prévoit et qu'il fonctionne sans box.
 
@@ -143,7 +143,8 @@ Toutes ces valeurs vivent dans `OpenEyeCore/Wire/Limits`. Elles sont **initiales
 | Paramètre | Valeur | Raison |
 |---|---|---|
 | Validité du QR d'appairage | 120 s | Laisse le temps de scanner, mais limite l'intérêt d'une photo du QR (S4). |
-| Délai du handshake (Hello → Auth) | 30 s | Le temps de passer Face ID, puis le défi expire (E2). |
+| Délai connexion → `Hello` | 10 s | Étape automatique : un intrus ne garde pas la connexion unique du Mac (D2). |
+| Délai `Challenge` → `Auth` (validité de `nM`) | 30 s | Le temps de passer Face ID, puis le défi expire (E2). |
 | Période du heartbeat (Mac → iPhone) | 2 s | |
 | Alerte « Mac injoignable » | 3 heartbeats manqués = 6 s | Un raté isolé ne déclenche pas d'alerte, une coupure réelle est vue vite (D1). |
 | Période du keepalive (iPhone → Mac) | 2 s | |
