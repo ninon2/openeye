@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_openeye._tcp</string>
+		<string>_openeye._udp</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>OpenEye utilise la caméra pour lire le QR code d’appairage affiché sur le Mac.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>OpenEye utilise Face ID pour autoriser chaque visionnage de l’écran du Mac et chaque commande envoyée.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>OpenEye utilise le réseau local pour communiquer avec l’appareil appairé.</string>
+</dict>
+</plist>

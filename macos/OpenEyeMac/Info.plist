@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_openeye._tcp</string>
+		<string>_openeye._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>OpenEye utilise le réseau local pour communiquer avec l’appareil appairé.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>OpenEye partage l’écran avec l’iPhone appairé pendant la supervision visible.</string>
+</dict>
+</plist>

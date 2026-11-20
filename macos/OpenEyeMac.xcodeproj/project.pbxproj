@@ -1,0 +1,163 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		200000000000000000000001 /* OpenEyeMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003 /* OpenEyeMacApp.swift */; };
+		200000000000000000000002 /* OpenEyeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 200000000000000000000017 /* OpenEyeCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		200000000000000000000003 /* OpenEyeMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenEyeMacApp.swift; sourceTree = "<group>"; };
+		200000000000000000000004 /* OpenEyeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenEyeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		200000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		200000000000000000000020 /* OpenEyeMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenEyeMac.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		200000000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (200000000000000000000002 /* OpenEyeCore in Frameworks */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		200000000000000000000007 = {isa = PBXGroup; children = (200000000000000000000008 /* OpenEyeMac */, 200000000000000000000009 /* Products */,); sourceTree = "<group>"; };
+		200000000000000000000008 /* OpenEyeMac */ = {isa = PBXGroup; children = (200000000000000000000003 /* OpenEyeMacApp.swift */, 200000000000000000000005 /* Info.plist */, 200000000000000000000020 /* OpenEyeMac.entitlements */,); path = OpenEyeMac; sourceTree = "<group>"; };
+		200000000000000000000009 /* Products */ = {isa = PBXGroup; children = (200000000000000000000004 /* OpenEyeMac.app */,); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		20000000000000000000000A /* OpenEyeMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 20000000000000000000000B;
+			buildPhases = (20000000000000000000000C /* Sources */, 200000000000000000000006 /* Frameworks */, 20000000000000000000000D /* Resources */,);
+			buildRules = ();
+			dependencies = ();
+			name = OpenEyeMac;
+			packageProductDependencies = (200000000000000000000017 /* OpenEyeCore */,);
+			productName = OpenEyeMac;
+			productReference = 200000000000000000000004 /* OpenEyeMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		20000000000000000000000E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = { 20000000000000000000000A = {CreatedOnToolsVersion = 15.0; }; };
+			};
+			buildConfigurationList = 20000000000000000000000F;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (fr, Base,);
+			mainGroup = 200000000000000000000007;
+			packageReferences = (200000000000000000000016 /* OpenEyeCore */,);
+			productRefGroup = 200000000000000000000009 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (20000000000000000000000A /* OpenEyeMac */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		20000000000000000000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		20000000000000000000000C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (200000000000000000000001 /* OpenEyeMacApp.swift in Sources */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		200000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				ENABLE_TESTABILITY = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		200000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		200000000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OpenEyeMac/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenEye;
+				CODE_SIGN_ENTITLEMENTS = OpenEyeMac/OpenEyeMac.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fr.openeye.m2.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		200000000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OpenEyeMac/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenEye;
+				CODE_SIGN_ENTITLEMENTS = OpenEyeMac/OpenEyeMac.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fr.openeye.m2.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		20000000000000000000000B = {isa = XCConfigurationList; buildConfigurations = (200000000000000000000012 /* Debug */, 200000000000000000000013 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		20000000000000000000000F = {isa = XCConfigurationList; buildConfigurations = (200000000000000000000010 /* Debug */, 200000000000000000000011 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		200000000000000000000016 /* OpenEyeCore */ = {isa = XCLocalSwiftPackageReference; relativePath = "../OpenEyeCore"; };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		200000000000000000000017 /* OpenEyeCore */ = {isa = XCSwiftPackageProductDependency; productName = OpenEyeCore; };
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 20000000000000000000000E /* Project object */;
+}

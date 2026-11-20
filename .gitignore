@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode et SwiftPM
+DerivedData/
+build/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.ipa
+
+# Signature et configuration locale
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.pfx
+*.key
+*.pem
+.env
+.env.*
+*.local.xcconfig
