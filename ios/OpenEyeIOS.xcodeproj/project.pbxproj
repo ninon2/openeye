@@ -1,8 +1,9 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
-	objectVersion = 56;
+	classes = {
+	};
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -20,26 +21,58 @@
 		100000000000000000000006 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-			files = (100000000000000000000002 /* OpenEyeCore in Frameworks */,);
+			files = (
+				100000000000000000000002 /* OpenEyeCore in Frameworks */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		100000000000000000000007 = {isa = PBXGroup; children = (100000000000000000000008 /* OpenEyeIOS */, 100000000000000000000009 /* Products */,); sourceTree = "<group>"; };
-		100000000000000000000008 /* OpenEyeIOS */ = {isa = PBXGroup; children = (100000000000000000000003 /* OpenEyeIOSApp.swift */, 100000000000000000000005 /* Info.plist */,); path = OpenEyeIOS; sourceTree = "<group>"; };
-		100000000000000000000009 /* Products */ = {isa = PBXGroup; children = (100000000000000000000004 /* OpenEyeIOS.app */,); name = Products; sourceTree = "<group>"; };
+		100000000000000000000007 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000008 /* OpenEyeIOS */,
+				100000000000000000000009 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		100000000000000000000008 /* OpenEyeIOS */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000003 /* OpenEyeIOSApp.swift */,
+				100000000000000000000005 /* Info.plist */,
+			);
+			path = OpenEyeIOS;
+			sourceTree = "<group>";
+		};
+		100000000000000000000009 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000004 /* OpenEyeIOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		10000000000000000000000A /* OpenEyeIOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 10000000000000000000000B;
-			buildPhases = (10000000000000000000000C /* Sources */, 100000000000000000000006 /* Frameworks */, 10000000000000000000000D /* Resources */,);
-			buildRules = ();
-			dependencies = ();
+			buildConfigurationList = 10000000000000000000000B /* Build configuration list for PBXNativeTarget "OpenEyeIOS" */;
+			buildPhases = (
+				10000000000000000000000C /* Sources */,
+				100000000000000000000006 /* Frameworks */,
+				10000000000000000000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
 			name = OpenEyeIOS;
-			packageProductDependencies = (100000000000000000000017 /* OpenEyeCore */,);
+			packageProductDependencies = (
+				100000000000000000000017 /* OpenEyeCore */,
+			);
 			productName = OpenEyeIOS;
 			productReference = 100000000000000000000004 /* OpenEyeIOS.app */;
 			productType = "com.apple.product-type.application";
@@ -52,19 +85,30 @@
 			attributes = {
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
-				TargetAttributes = { 10000000000000000000000A = {CreatedOnToolsVersion = 15.0; }; };
+				TargetAttributes = {
+					10000000000000000000000A = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
 			};
-			buildConfigurationList = 10000000000000000000000F;
+			buildConfigurationList = 10000000000000000000000F /* Build configuration list for PBXProject "OpenEyeIOS" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = fr;
 			hasScannedForEncodings = 0;
-			knownRegions = (fr, Base,);
+			knownRegions = (
+				fr,
+				Base,
+			);
 			mainGroup = 100000000000000000000007;
-			packageReferences = (100000000000000000000016 /* OpenEyeCore */,);
+			packageReferences = (
+				100000000000000000000016 /* XCLocalSwiftPackageReference "../OpenEyeCore" */,
+			);
 			productRefGroup = 100000000000000000000009 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (10000000000000000000000A /* OpenEyeIOS */,);
+			targets = (
+				10000000000000000000000A /* OpenEyeIOS */,
+			);
 		};
 /* End PBXProject section */
 
@@ -72,7 +116,8 @@
 		10000000000000000000000D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -81,7 +126,9 @@
 		10000000000000000000000C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (100000000000000000000001 /* OpenEyeIOSApp.swift in Sources */,);
+			files = (
+				100000000000000000000001 /* OpenEyeIOSApp.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -93,6 +140,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				ENABLE_TESTABILITY = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -117,12 +165,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OpenEyeIOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenEye;
-				TARGETED_DEVICE_FAMILY = 1;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fr.openeye.m2.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -134,28 +182,50 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OpenEyeIOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenEye;
-				TARGETED_DEVICE_FAMILY = 1;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fr.openeye.m2.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		10000000000000000000000B = {isa = XCConfigurationList; buildConfigurations = (100000000000000000000012 /* Debug */, 100000000000000000000013 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		10000000000000000000000F = {isa = XCConfigurationList; buildConfigurations = (100000000000000000000010 /* Debug */, 100000000000000000000011 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		10000000000000000000000B /* Build configuration list for PBXNativeTarget "OpenEyeIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000012 /* Debug */,
+				100000000000000000000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		10000000000000000000000F /* Build configuration list for PBXProject "OpenEyeIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000010 /* Debug */,
+				100000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		100000000000000000000016 /* OpenEyeCore */ = {isa = XCLocalSwiftPackageReference; relativePath = "../OpenEyeCore"; };
+		100000000000000000000016 /* XCLocalSwiftPackageReference "../OpenEyeCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../OpenEyeCore;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		100000000000000000000017 /* OpenEyeCore */ = {isa = XCSwiftPackageProductDependency; productName = OpenEyeCore; };
+		100000000000000000000017 /* OpenEyeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = OpenEyeCore;
+		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 10000000000000000000000E /* Project object */;
