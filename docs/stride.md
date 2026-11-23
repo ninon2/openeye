@@ -8,7 +8,7 @@ OpenEye permet au parent de **voir** l'écran du Mac de l'enfant depuis son iPho
 
 > Écart avec le dossier initial (MVP point 5 « une commande signée ») : au MVP, l'autorisation de visionnage signée remplace la commande. La commande « Verrouiller » devient une **extension J4**, traitée en section 5 bis, une fois le MVP stable. Ce changement, avec l'inversion des rôles (Mac = capteur, iPhone = centrale), doit être validé par écrit par l'enseignant (tâche 04). Le principe et l'inversion des rôles ont déjà été approuvés à l'oral.
 
-Matériel de référence : iPhone 13 (Face ID, Secure Enclave) sous iOS 27.0.1, Mac sous macOS 27.2, Xcode 27.2, compte Apple gratuit.
+Matériel de référence : iPhone 13 (Face ID, Secure Enclave) sous iOS 27.2.1, Mac sous macOS 27.2, Xcode 27.2, compte Apple gratuit.
 
 ## 2. Actifs à protéger
 
