@@ -18,7 +18,7 @@ Pouvoir prouver **qui a regardé, quand**, et **quand la supervision a été cou
 | 0x06 | CAPTURE_STARTED / 0x07 CAPTURE_STOPPED | sessionID (8) |
 | 0x08 | PERMISSION_DENIED | — |
 | 0x09 | AUTH_FAILURES | Nombre (2), regroupé sur 10 s |
-| 0x0A | PURGE_CHECKPOINT | seq et hash de la dernière entrée purgée |
+| 0x0A | PURGE_CHECKPOINT | seq (8) et hash (32) de la dernière entrée purgée, hasKey (1), `P_pub` en vigueur juste après elle (65, ou 65 zéros si hasKey = 0) |
 | 0x20 / 0x21 | LOCK / UNLOCK (extension) | sessionID (8), durée (4), `nC` (32), `sigP` (64) |
 
 **Jamais dans le journal :** images, noms, nom de l'ordinateur, adresses réseau, clés privées ou de session, contenu de l'écran.
@@ -46,7 +46,14 @@ Pour chaque entrée, dans l'ordre :
 2. `prevHash` == hash de l'entrée précédente ;
 3. le hash recalculé correspond ;
 4. `sig` est valide avec `M_pub` ;
-5. pour `SESSION_OPENED`, `LOCK` et `UNLOCK` : `sigP` est valide sur le contexte signé (voir [protocole.md](protocole.md)), avec la `P_pub` de l'entrée `PAIRED` **la plus récente qui précède** cette entrée.
+5. pour `SESSION_OPENED`, `LOCK` et `UNLOCK` : `sigP` est valide sur le contexte signé (voir [protocole.md](protocole.md)), avec la **`P_pub` en vigueur** à cette position.
+
+**Point de départ :**
+
+- **Journal jamais purgé :** la première entrée a `seq = 1` et un `prevHash` de 32 zéros. Aucune `P_pub` n'est en vigueur.
+- **Journal purgé :** on prend le `PURGE_CHECKPOINT` **le plus récent** du fichier. La première entrée conservée doit avoir `seq` == seq du checkpoint + 1 et `prevHash` == hash du checkpoint. La `P_pub` de départ est celle du checkpoint (aucune si hasKey = 0).
+
+**Évolution de la `P_pub` en vigueur :** `PAIRED` la remplace, `REVOKED` la supprime. Une entrée `SESSION_OPENED`, `LOCK` ou `UNLOCK` sans `P_pub` en vigueur est un échec.
 
 Premier échec → « Journal altéré à l'entrée n ».
 
@@ -62,6 +69,8 @@ Premier échec → « Journal altéré à l'entrée n ».
 | Supprimer ou insérer au milieu | ✅ | `seq` et `prevHash` |
 | Inventer une entrée « le parent a regardé » | ✅ | `sigP` impossible à produire sans Face ID et la Secure Enclave du parent |
 | Supprimer **les dernières** entrées (troncature) | ⚠️ Partiellement | **Ancre côté iPhone** : chaque heartbeat transmet `seq` et le hash de tête. L'iPhone garde le maximum vu, puis à la session suivante demande le hash à cette position (`JournalAnchorRequest`, voir [protocole.md](protocole.md) §5). Une troncature **après** la dernière connexion de l'iPhone reste indétectable. |
+| Avancer l'horloge du Mac pour tout purger | ✅ si l'ancre a moins de 29 jours | Ancre datée par l'horloge de l'iPhone |
+| **App Mac modifiée** qui garde l'ancien hash et le renvoie | ❌ | Limite assumée : la preuve est produite par le Mac lui-même |
 | Enfant administrateur qui efface tout le journal et la clé du Mac | ⚠️ | L'iPhone détecte la clé du Mac changée ou le journal plus court que l'ancre. On ne peut pas l'empêcher (limite assumée). |
 
 **Pourquoi le dire :** le dossier initial affirmait « toute suppression est détectable ». C'est faux pour la fin du journal sans ancre externe. Le jury appréciera qu'on connaisse la limite exacte.
@@ -69,5 +78,12 @@ Premier échec → « Journal altéré à l'entrée n ».
 ## 6. Conservation et purge
 
 - **Durée proposée :** 30 jours (A valide dans l'analyse RGPD).
-- **Purge :** on supprime les entrées trop anciennes, puis on ajoute `PURGE_CHECKPOINT` avec le `seq` et le hash de la dernière entrée supprimée. La chaîne reste vérifiable à partir de ce point.
+- **Purge :** on retire les plus anciennes entrées, **sans trou**, jusqu'à la première qui a moins de 30 jours, et on ajoute `PURGE_CHECKPOINT` en fin de journal. Le tout est écrit en un **remplacement atomique** du fichier : une coupure pendant la purge laisse l'ancien journal complet.
+
+  **Pourquoi copier `P_pub` dans le checkpoint :** si `PAIRED` est purgée, les signatures `sigP` des visionnages conservés deviendraient invérifiables (R1). Garder `PAIRED` seule au milieu d'une zone purgée casserait le chaînage.
+
+  **Limite :** le checkpoint est signé par le Mac, comme `PAIRED`. Le parent doit comparer cette `P_pub` à celle de son iPhone.
+
+  **RGPD (A) :** cette clé publique peut être conservée plus de 30 jours, tant que l'appairage dure ou qu'une entrée conservée en dépend.
+- **Avancer l'horloge du Mac déclenche une purge anticipée.** Le Mac ne peut pas s'en rendre compte seul. C'est l'ancre datée de l'iPhone qui le révèle ([protocole.md](protocole.md) §5).
 - **Stockage :** un fichier dans le conteneur sandbox de l'app Mac. Il est lisible par l'enfant via l'interface de l'app.

@@ -106,7 +106,9 @@ Statut : **brouillon B, à relire par A** · Références : [stride.md](stride.m
 | Clé publique du parent (côté Mac) | Keychain du Mac | Idem | |
 | Clés de session, clés éphémères | **Mémoire uniquement** | Effacées à la fin de la session | Jamais écrites sur disque : la confidentialité persistante est préservée. |
 | Journal | Fichier dans le conteneur sandbox du Mac, plus une ancre côté iPhone | Signé et chaîné, voir [journal.md](journal.md) | |
-| Images de l'écran | **Nulle part** | — | Direct uniquement, aucun enregistrement. |
+| Images de l'écran | **Mémoire vive uniquement**, sur les deux appareils | Voir §7.1 | Le parent regarde en direct, rien n'est enregistré. |
+
+**Compte macOS :** le Mac est utilisé en session **Invité**, dont le dossier est effacé à la déconnexion. Clé du Mac, appairage et journal n'y survivent pas. L'iPhone refuse alors le Mac dont la clé a changé (S2), et il faut réappairer. Un compte permanent est nécessaire pour que le journal serve de preuve.
 
 ## 6. Transport : Multipeer Connectivity
 
@@ -136,6 +138,25 @@ Statut : **brouillon B, à relire par A** · Références : [stride.md](stride.m
 | Affichage iPhone | `AVSampleBufferDisplayLayer` ou `VTDecompressionSession` | Décodage matériel. |
 | Protection iPhone | Vue masquée si l'app devient inactive (aperçu multitâche) ou si l'écran est enregistré ou recopié | STRIDE I4 et I5. |
 
+### 7.1 Direct uniquement : aucune vidéo enregistrée
+
+Le parent regarde **en direct**. Aucune image ni vidéo n'est écrite sur le disque, ni sur le Mac ni sur l'iPhone.
+
+| Règle | Vérification |
+|---|---|
+| Chaque image vit en mémoire vive, puis est libérée après envoi (Mac) ou affichage (iPhone) | Revue de code |
+| Files bornées : 3 images à l'envoi, 4 en réassemblage (4 Mio au plus) | XCTest |
+| Ni fichier, ni cache, ni fichier temporaire, ni photothèque, ni `AVAssetWriter` ; aucune permission Photos | Revue de code et des `Info.plist` |
+| Pas de pause, de retour en arrière ni de « revoir » | Revue de l'interface |
+| Fin de session ou arrière-plan : files vidées, dernière image effacée de l'écran | Appareils réels |
+| La taille du conteneur des apps n'augmente pas avec la durée du visionnage | Appareils réels, avant et après 10 min |
+
+**Pourquoi :** minimisation (RGPD) et **capacité**. À 1 Mbit/s, une heure enregistrée occuperait environ 450 Mo. En direct, la mémoire est bornée quelle que soit la durée.
+
+**À ne pas confondre avec le journal :** ses 30 jours concernent de petites entrées (date, type d'événement, signature), **jamais des images**.
+
+**Limite :** une capture d'écran faite par le parent ne peut pas être empêchée (I5).
+
 ## 8. Paramètres globaux
 
 Toutes ces valeurs vivent dans `OpenEyeCore/Wire/Limits`. Elles sont **initiales, à recalibrer après mesures**.
@@ -153,6 +174,9 @@ Toutes ces valeurs vivent dans `OpenEyeCore/Wire/Limits`. Elles sont **initiales
 | Taille maximale d'un fragment vidéo | 16 384 octets | |
 | Taille maximale d'une image réassemblée | 1 Mio, 64 fragments au maximum | D3 |
 | Images en cours de réassemblage | 4 au maximum, purge après 1 s | D3 |
+| Conservation du journal | 30 jours | À valider par A (RGPD). Événements seulement, aucune image. |
+| Âge minimal d'une ancre « purgée » normale | 29 jours | Voir protocole §5. |
+| Délai de réponse à `JournalAnchorRequest` | 10 s | Une absence de réponse ne passe pas inaperçue. |
 | Tolérance d'horloge | ± 30 s | Au-delà, le paquet est refusé et l'erreur « horloges désynchronisées » est affichée. |
 | Échecs d'authentification avant fermeture | 20 en 10 s | Au-delà, la session est fermée (échec sûr) et l'incident est journalisé une seule fois. |
 | Durée maximale d'une session | 60 min, puis nouveau handshake avec Face ID | Limite l'usage d'une même clé. La rotation toutes les 5 min est une extension. |

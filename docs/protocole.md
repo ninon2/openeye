@@ -254,16 +254,28 @@ Chaque étape **jette** le paquet en cas d'échec. Rien n'est modifié dans l'é
 
 Le `Heartbeat` (toutes les 2 s) transporte `journalSeq` et `journalHead` (hash de la dernière entrée du journal du Mac).
 
-- L'iPhone garde la plus grande paire (`seq`, `hash`) reçue dans son Keychain : c'est l'**ancre**.
+- L'iPhone garde dans son Keychain la paire (`seq`, `hash`) de plus grand `seq`, avec sa **date de réception lue sur l'horloge de l'iPhone** : c'est l'**ancre**. Elle est liée à `M_pub` et supprimée avec l'appairage.
 - À la session suivante, juste après `SessionReady`, l'iPhone envoie **une seule fois** `JournalAnchorRequest { seq = seq de l'ancre }`. Le Mac répond `JournalAnchorProof` :
   - `status = 0` : l'entrée existe, `hash` est son hash ;
   - `status = 1` : l'entrée a été purgée (conservation de 30 jours), `hash` vaut 32 zéros.
-- L'iPhone affiche « Journal du Mac altéré » si le premier `Heartbeat` donne un `journalSeq` inférieur à l'ancre, ou si `status = 0` avec un `hash` différent de l'ancre. Avec `status = 1`, il affiche « Vérification impossible : ancre purgée », ce qui n'est **pas** une alerte d'altération.
+- L'iPhone affiche « Journal du Mac altéré » si le premier `Heartbeat` donne un `journalSeq` inférieur à l'ancre, ou si `status = 0` avec un `hash` différent de l'ancre. Avec `status = 1`, l'âge de l'ancre décide :
+  - **moins de 29 jours** : « Journal du Mac altéré », car une purge normale est impossible ;
+  - **29 jours ou plus** : « Vérification impossible : ancre purgée », sans alerte d'altération ;
+  - **âge négatif** : « Vérification impossible : horloge de l'iPhone modifiée ».
+- Sans réponse en **10 s**, l'iPhone affiche « Vérification impossible : pas de réponse du Mac ».
+- Un `JournalAnchorProof` non demandé, avec un `seq` différent de la demande ou un `status` autre que 0 ou 1, est rejeté et compté.
+- **L'ancre n'est pas remplacée avant la fin de cette vérification.** Elle l'est ensuite si le hash correspond, ou si la purge est normale. Après une alerte ou une vérification impossible pour une autre raison, elle est conservée jusqu'à ce que le parent confirme avoir lu le message.
 - Un second `JournalAnchorRequest` dans la même session est un type inattendu (étape 3) : rejeté et compté.
 
 **Pourquoi un message dédié :** le heartbeat ne donne que la **tête** du journal. Or, après une troncature, de nouvelles entrées (au minimum `SESSION_OPENED`) font repasser `seq` au-dessus de l'ancre. Sans comparer le hash **à la position de l'ancre**, la troncature passerait inaperçue. La réponse voyage dans le canal chiffré et authentifié par la clé de session du Mac : pas besoin d'une signature en plus.
 
-**Pourquoi « purgée » n'est pas une alerte :** l'entrée ancrée est la dernière vue à la session précédente. Elle n'est purgée que si le parent ne s'est pas connecté depuis plus de 30 jours. C'est une limite, à citer à l'oral.
+**Pourquoi dater l'ancre :** sinon, avancer l'horloge du Mac de 31 jours purge tout le journal, et la réponse « purgée » évite l'alerte. La date vient de l'iPhone, que l'enfant ne contrôle pas.
+
+**Pourquoi 29 jours et non 30 :** l'entrée ancrée est un peu plus ancienne que sa réception, au plus la durée d'une session (60 min). La marge évite une fausse alerte.
+
+**Pourquoi ne pas remplacer l'ancre tout de suite :** le premier `Heartbeat` l'écraserait avant la comparaison, et la preuve serait perdue.
+
+**Limites, à citer à l'oral :** après 29 jours sans connexion, une purge frauduleuse ne se distingue plus d'une purge normale. Une app Mac **modifiée** peut aussi renvoyer l'ancien hash : l'ancre protège contre la modification du fichier ou de l'horloge, pas contre une app falsifiée (T2).
 
 **Pourquoi :** c'est le « point d'ancrage externe » qui manquait pour détecter une **troncature** du journal (STRIDE T4), voir [journal.md](journal.md).
 
