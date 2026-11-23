@@ -25,4 +25,9 @@ public enum Limits {
     public static let failureWindow: Duration = .seconds(10)
     /// Tolérance entre les deux horloges, en millisecondes.
     public static let clockToleranceMilliseconds: UInt64 = 30_000
+
+    // MARK: Appairage (tâche 21)
+
+    /// Durée de vie d'un QR d'appairage, en secondes (STRIDE S4).
+    public static let pairingLifetimeSeconds: UInt64 = 120
 }
