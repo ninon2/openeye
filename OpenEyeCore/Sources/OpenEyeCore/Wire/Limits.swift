@@ -42,4 +42,36 @@ public enum Limits {
     public static let assemblyTimeout: Duration = .seconds(1)
     /// PROPOSITION absente de la spec, à valider : largeur et hauteur maximales acceptées.
     public static let maxVideoDimension = 4_096
+
+    // MARK: Connexion et liveness (tâches 24 et 28)
+
+    /// Le Hello doit arriver dans ce délai après la connexion (STRIDE D2).
+    public static let helloTimeout: Duration = .seconds(10)
+    /// Période du Heartbeat (Mac → iPhone) et du Keepalive (iPhone → Mac).
+    public static let heartbeatPeriod: Duration = .seconds(2)
+    /// Sans paquet authentifié pendant ce délai, l'iPhone affiche « Mac injoignable » (3 heartbeats manqués).
+    public static let unreachableAfter: Duration = .seconds(6)
+    /// Sans Keepalive pendant ce délai, le Mac arrête la capture.
+    public static let keepaliveTimeout: Duration = .seconds(10)
+    /// Images encodées en attente d'envoi : au-delà, on jette jusqu'à la prochaine image clé.
+    public static let maxQueuedFrames = 3
+
+    // MARK: Journal (tâche 29)
+
+    /// Conservation des entrées, en millisecondes : 30 jours (à valider par A, RGPD).
+    public static let journalRetentionMilliseconds: UInt64 = 30 * 24 * 3_600 * 1_000
+    /// Âge minimal d'une ancre pour qu'une réponse « purgée » soit normale : 29 jours.
+    public static let minPurgedAnchorAgeMilliseconds: UInt64 = 29 * 24 * 3_600 * 1_000
+    /// Délai de réponse à JournalAnchorRequest.
+    public static let anchorReplyTimeout: Duration = .seconds(10)
+
+    // MARK: Commandes Verrouiller / Déverrouiller (extension J4)
+
+    /// Durée de vie du défi nC, entre CmdChallenge et la commande (STRIDE L7).
+    public static let commandChallengeLifetime: Duration = .seconds(30)
+    /// Délai minimal entre deux défis : une rafale de demandes reste sans effet (STRIDE L6).
+    public static let minCommandInterval: Duration = .seconds(2)
+    /// Plafond du verrouillage, imposé par le Mac quelle que soit la durée demandée (STRIDE L5).
+    /// PROPOSITION à valider : 15 minutes, la valeur citée dans le STRIDE.
+    public static let maxLockSeconds: UInt32 = 15 * 60
 }
