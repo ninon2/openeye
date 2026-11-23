@@ -1,9 +1,10 @@
-// PROTOTYPE JETABLE (tâche 14) : ne jamais fusionner dans main.
+// PROTOTYPE JETABLE (tâches 14 et 15) : ne jamais fusionner dans main.
 // But : vérifier l'autorisation de capture en session Guest, l'ordre indicateur/capture,
 // et mesurer l'encodage H.264. Aucune image n'est enregistrée, envoyée ni affichée.
 
 import AppKit
 import CoreMedia
+import MultipeerConnectivity
 import ScreenCaptureKit
 import SwiftUI
 import VideoToolbox
@@ -11,6 +12,7 @@ import VideoToolbox
 @main
 struct OpenEyeMacApp: App {
     @StateObject private var model = CaptureModel()
+    @StateObject private var link = MacLink()
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +23,16 @@ struct OpenEyeMacApp: App {
                 HStack {
                     Button("Démarrer") { Task { await model.start() } }.disabled(model.isRunning)
                     Button("Arrêter") { Task { await model.stop(status: "Arrêté") } }.disabled(!model.isRunning)
+                }
+                Divider()
+                Text("OpenEye · prototype 15").font(.title)
+                Text(link.status)
+                HStack {
+                    Button(link.isAdvertising ? "Arrêter l'annonce" : "Annoncer") { link.toggle() }
+                    ForEach([1, 4, 8], id: \.self) { rate in
+                        Button("Envoyer \(rate) Mbit/s, 10 s") { link.sendBlocks(megabits: rate) }
+                            .disabled(!link.isConnected || link.isSending)
+                    }
                 }
             }
             .padding()
@@ -322,4 +334,105 @@ final class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecke
         }
         return total
     }
+}
+
+// MARK: - Tâche 15
+
+/// Liaison sans authentification : elle ne transporte que des octets synthétiques, jamais l'écran.
+final class MacLink: NSObject, ObservableObject, MCSessionDelegate, MCNearbyServiceAdvertiserDelegate, @unchecked Sendable {
+    @Published var status = "Arrêté"
+    @Published var isAdvertising = false
+    @Published var isConnected = false
+    @Published var isSending = false
+
+    // Jamais le nom de l'ordinateur : il contient souvent un prénom.
+    private let peer = MCPeerID(displayName: "OpenEye-\(UUID().uuidString.prefix(4))")
+    private lazy var session: MCSession = {
+        let session = MCSession(peer: peer, securityIdentity: nil, encryptionPreference: .required)
+        session.delegate = self
+        return session
+    }()
+    private lazy var advertiser: MCNearbyServiceAdvertiser = {
+        let advertiser = MCNearbyServiceAdvertiser(peer: peer, discoveryInfo: nil, serviceType: "openeye")
+        advertiser.delegate = self
+        return advertiser
+    }()
+
+    func toggle() {
+        if isAdvertising {
+            advertiser.stopAdvertisingPeer()
+            session.disconnect()
+            isAdvertising = false
+            status = "Arrêté"
+        } else {
+            advertiser.startAdvertisingPeer()
+            isAdvertising = true
+            status = "Annonce en cours"
+        }
+    }
+
+    /// Blocs de 16 Kio à débit constant, pour ne pas remplir la file d'envoi de Multipeer.
+    @MainActor
+    func sendBlocks(megabits: Int) {
+        guard !isSending else { return }
+        isSending = true
+        let blockSize = 16_384
+        let count = megabits * 1_000_000 * 10 / 8 / blockSize
+        Task { @MainActor in
+            let clock = ContinuousClock()
+            let start = clock.now
+            var sent = 0
+            for index in 0..<count {
+                let due = start.advanced(by: .seconds(10) * index / count)
+                try? await Task.sleep(until: due, clock: clock)
+                let peers = session.connectedPeers
+                guard !peers.isEmpty else { break }
+                let id = UInt32(index).bigEndian
+                let block = Data([3]) + withUnsafeBytes(of: id) { Data($0) } + Data(count: blockSize - 5)
+                do {
+                    try session.send(block, toPeers: peers, with: .reliable)
+                    sent += 1
+                } catch {
+                    break
+                }
+            }
+            status = "Envoyés : \(sent) blocs sur \(count)"
+            isSending = false
+        }
+    }
+
+    // MARK: Délégués
+
+    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
+        // Un seul appareil à la fois.
+        let accept = session.connectedPeers.isEmpty
+        invitationHandler(accept, accept ? session : nil)
+    }
+
+    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
+        DispatchQueue.main.async { self.status = "Annonce refusée (réseau local ?)" }
+    }
+
+    func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        DispatchQueue.main.async {
+            self.isConnected = !session.connectedPeers.isEmpty
+            self.status = self.isConnected ? "Connecté" : "Non connecté"
+        }
+    }
+
+    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        // Seul message accepté : un ping de 9 octets, renvoyé en pong.
+        guard data.count == 9, data.first == 1 else { return }
+        try? session.send(Data([2]) + data.dropFirst(), toPeers: [peerID], with: .reliable)
+    }
+
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
+        stream.close()
+    }
+
+    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {
+        progress.cancel()
+    }
+
+    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
 }
