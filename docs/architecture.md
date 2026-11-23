@@ -108,7 +108,7 @@ Statut : **brouillon B, à relire par A** · Références : [stride.md](stride.m
 | Journal | Fichier dans le conteneur sandbox du Mac, plus une ancre côté iPhone | Signé et chaîné, voir [journal.md](journal.md) | |
 | Images de l'écran | **Mémoire vive uniquement**, sur les deux appareils | Voir §7.1 | Le parent regarde en direct, rien n'est enregistré. |
 
-**Compte macOS :** le Mac est utilisé en session **Invité**, dont le dossier est effacé à la déconnexion. Clé du Mac, appairage et journal n'y survivent pas. L'iPhone refuse alors le Mac dont la clé a changé (S2), et il faut réappairer. Un compte permanent est nécessaire pour que le journal serve de preuve.
+**Compte macOS :** le Mac est utilisé en session **Invité**, dont le dossier est effacé à la déconnexion. Clé du Mac, appairage et journal n'y survivent pas. L'iPhone refuse alors le Mac dont la clé a changé (S2), et il faut réappairer. Aucun compte permanent n'est possible : le journal ne vaut preuve que pendant une séance (limite assumée).
 
 ## 6. Transport : Multipeer Connectivity
 
