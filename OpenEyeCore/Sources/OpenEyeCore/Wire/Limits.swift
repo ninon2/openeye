@@ -30,4 +30,16 @@ public enum Limits {
 
     /// Durée de vie d'un QR d'appairage, en secondes (STRIDE S4).
     public static let pairingLifetimeSeconds: UInt64 = 120
+
+    // MARK: Vidéo (tâche 26)
+
+    /// Nombre maximal de fragments d'une image : 64 × 16 Kio = 1 Mio (STRIDE D3).
+    public static let maxFragmentsPerFrame = 64
+    public static let maxFrameSize = 1_048_576
+    /// Images en cours de réassemblage.
+    public static let maxPendingFrames = 4
+    /// Au-delà, une image incomplète est jetée.
+    public static let assemblyTimeout: Duration = .seconds(1)
+    /// PROPOSITION absente de la spec, à valider : largeur et hauteur maximales acceptées.
+    public static let maxVideoDimension = 4_096
 }
