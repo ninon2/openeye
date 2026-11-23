@@ -1,0 +1,83 @@
+name: CI
+
+# « pull_request » et non « pull_request_target » : le code d'une PR ne reçoit jamais de secret.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Le dépôt est public et la CI ne publie rien : le jeton GitHub n'a aucun droit.
+permissions: {}
+
+# Un nouveau push sur la même branche annule l'exécution précédente.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verifications:
+    name: verifications
+    # Image en préversion chez GitHub, la seule qui propose la version d'Xcode du projet.
+    runs-on: xcode-27
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      # Aucune action tierce, même actions/checkout : git suffit pour un dépôt public.
+      - name: Récupérer le code
+        run: |
+          git init --quiet .
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git fetch --quiet --depth 1 origin "$GITHUB_SHA"
+          git checkout --quiet --detach FETCH_HEAD
+
+      # Affiche le nom des fichiers fautifs, jamais leur contenu : les journaux de la CI sont publics.
+      - name: Chercher identifiants Apple, clés et fichiers de signature
+        run: |
+          refuser_si_trouve() {
+            local code=0
+            "${@:2}" || code=$?
+            # git grep : 1 = rien trouvé. Tout autre code (trouvé ou erreur) est un échec.
+            if [ "$code" -ne 1 ]; then
+              echo "::error::$1"
+              return 1
+            fi
+          }
+          refuser_si_trouve "DEVELOPMENT_TEAM présent dans un projet Xcode" \
+            git grep -lE 'DEVELOPMENT_TEAM = "?[A-Z0-9]' -- '*.pbxproj' '*.xcconfig'
+          refuser_si_trouve "Clé privée présente dans le dépôt" \
+            git grep -lE -e '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+          interdits=$(git ls-files -- '*.mobileprovision' '*.provisionprofile' '*.p12' '*.pfx' '*.pem' '*xcuserdata/*')
+          if [ -n "$interdits" ]; then
+            echo "$interdits"
+            echo "::error::Fichier de signature ou réglage personnel versionné"
+            exit 1
+          fi
+
+      - name: Versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Tests d'OpenEyeCore
+        run: swift test --package-path OpenEyeCore
+
+      # Sans signature : aucun certificat ni compte Apple n'est nécessaire.
+      - name: Compiler l'app Mac
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build -workspace OpenEye.xcworkspace -scheme OpenEyeMac \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/dd-mac" CODE_SIGNING_ALLOWED=NO
+
+      - name: Compiler l'app iPhone
+        if: ${{ !cancelled() }}
+        run: |
+          xcodebuild build -workspace OpenEye.xcworkspace -scheme OpenEyeIOS \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/dd-ios" CODE_SIGNING_ALLOWED=NO
