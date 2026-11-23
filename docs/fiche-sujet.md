@@ -70,7 +70,7 @@ Les enfants passent beaucoup de temps seuls sur l'ordinateur, et leurs parents n
 
 ## 7. Contraintes
 
-- **Matériel :** un Mac (macOS 27.2, Xcode 27.2), un iPhone 13 (iOS 27.0.1, Face ID).
+- **Matériel :** un Mac (macOS 27.2, Xcode 27.2), un iPhone 13 (iOS 27.2.1, Face ID).
 - **Compte Apple gratuit :** l'app iPhone expire au bout de 7 jours et doit être réinstallée la veille de chaque démo.
 - **Logiciel :** Swift et SwiftUI, frameworks Apple uniquement, aucune dépendance externe.
 - **Liaison :** locale uniquement (Multipeer : découverte par Bluetooth, flux par Wi-Fi).
