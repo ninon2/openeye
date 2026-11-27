@@ -78,6 +78,38 @@ final class PairingTests: XCTestCase {
         )
     }
 
+    /// Le Mac confirme avant le parent puis coupe la connexion : l'iPhone garde PairAccept
+    /// et ne le vérifie qu'au clic. La connexion n'entre pas dans la vérification, seule la signature compte.
+    func testAcceptKeptBeforeParentClickIsStillVerified() throws {
+        func pendingAccept() throws -> (phone: ParentPairing, accept: Data) {
+            let computer = newMac(), phone = try newParent(for: computer)
+            let nonce = try computer.makeNonce(request: phone.makeRequest(), now: t0)
+            _ = try computer.verify(reveal: phone.reveal(nonce: nonce).reveal, now: t0)
+            return (phone, try computer.confirm(codesMatch: true, now: t0).accept)
+        }
+
+        // Cas normal : clic du parent après la coupure.
+        let normal = try pendingAccept()
+        XCTAssertEqual(
+            try normal.phone.finish(accept: normal.accept, codesMatch: true).x963Representation,
+            mac.publicKey.x963Representation
+        )
+
+        // Le parent voit des codes différents : refus, même avec un PairAccept valide en attente.
+        let refused = try pendingAccept()
+        assertFails(.refusedByUser) { try refused.phone.finish(accept: refused.accept, codesMatch: false) }
+
+        // PairAccept modifié pendant l'attente (dernier octet de la signature) : refusé.
+        let tampered = try pendingAccept()
+        var forged = tampered.accept
+        forged[forged.index(before: forged.endIndex)] ^= 0x01
+        assertFails(.invalidSignature) { try tampered.phone.finish(accept: forged, codesMatch: true) }
+
+        // PairAccept d'un autre appairage, rejoué : refusé (identifiant d'appairage différent).
+        let other = try pendingAccept(), victim = try pendingAccept()
+        assertFails(.wrongPairing) { try victim.phone.finish(accept: other.accept, codesMatch: true) }
+    }
+
     // MARK: - QR hostile
 
     func testQRExpiry() throws {
