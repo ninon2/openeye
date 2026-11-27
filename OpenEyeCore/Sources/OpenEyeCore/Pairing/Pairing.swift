@@ -146,7 +146,14 @@ public final class MacPairing {
 
     private let mac: any Signer
     private let createdAt: ContinuousClock.Instant
+    /// Fixée à la première demande valide : ouvre le délai de confirmation, plus long que celui du QR.
+    private var confirmationDeadline: ContinuousClock.Instant?
     private var state: State
+
+    /// Échéance de la tentative : 120 s pour scanner le QR, puis 5 min après une demande valide.
+    public var deadline: ContinuousClock.Instant {
+        confirmationDeadline ?? createdAt.advanced(by: .seconds(Int64(Limits.pairingLifetimeSeconds)))
+    }
     /// Texte du QR à afficher. Vaut nil dès qu'une demande est arrivée : le secret est alors oublié.
     public var qrText: String? {
         if case let .waitingForRequest(qr) = state { return qr.text }
@@ -194,6 +201,8 @@ public final class MacPairing {
         let nonce = Transcript.randomNonce()
         let reply = try PairingMath.packet(.pairNonce, body: pairingID + nonce)
         state = .waitingForReveal(pairingID: pairingID, parent: parent, commitment: commitment, nonce: nonce)
+        // Seulement ici, après le HMAC : une demande forgée ne prolonge jamais la tentative.
+        confirmationDeadline = now.advanced(by: Limits.pairingConfirmationLifetime)
         return reply
     }
 
@@ -238,9 +247,9 @@ public final class MacPairing {
         return (try PairingMath.packet(.pairAccept, body: pairingID + signature), parent)
     }
 
-    /// Le QR vaut 120 s : une fois expiré, toute la tentative échoue.
+    /// Une fois l'échéance passée, toute la tentative échoue.
     private func checkLifetime(_ now: ContinuousClock.Instant) throws {
-        guard createdAt.duration(to: now) < .seconds(Int64(Limits.pairingLifetimeSeconds)) else {
+        guard now < deadline else {
             throw PairingError.expired
         }
     }
