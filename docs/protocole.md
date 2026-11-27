@@ -191,7 +191,11 @@ sessionID = 8 premiers octets de SHA256("OpenEye/v1/sid" ‖ TH)
 | 0x15 | Close | les deux | ts(8) ‖ reason(1) |
 | 0x16 | JournalAnchorRequest | I→M | ts(8) ‖ seq(8) |
 | 0x17 | JournalAnchorProof | M→I | ts(8) ‖ seq(8) ‖ status(1) ‖ hash(32) |
-| 0x20–0x23 | Lock / Unlock / CmdChallenge / CmdResult | extension J4 | voir §6 |
+| 0x20 | Lock | I→M | ts(8) ‖ nC(32) ‖ duréeSecondes(4, > 0) ‖ sigP(64) |
+| 0x21 | Unlock | I→M | ts(8) ‖ nC(32) ‖ duréeSecondes(4, = 0) ‖ sigP(64) |
+| 0x22 | CmdChallenge | M→I | ts(8) ‖ nC(32) |
+| 0x23 | CmdResult | M→I | ts(8) ‖ résultat(1) ‖ heureFin(8) |
+| 0x24 | CmdChallengeRequest | I→M | ts(8) |
 
 - Toutes les tailles fixes sont **exactes**. Tout autre valeur entraîne le rejet.
 - `captureState` : 0 = arrêtée, 1 = en cours, 2 = permission refusée, 3 = indicateur indisponible.
@@ -284,7 +288,7 @@ Le `Heartbeat` (toutes les 2 s) transporte `journalSeq` et `journalHead` (hash d
 Une commande ne réutilise **pas** la signature de session : chaque commande a son propre défi et son propre Face ID (E1, L8).
 
 ```text
- iPhone ── CmdChallengeRequest (0x22, chiffré) ──▶ Mac   nC ← 32 octets aléatoires, valable 30 s, usage unique
+ iPhone ── CmdChallengeRequest (0x24, chiffré) ──▶ Mac   nC ← 32 octets aléatoires, valable 30 s, usage unique
  iPhone ◀── CmdChallenge (0x22, chiffré) { nC } ── Mac
  Face ID → sigP = Sign_P("OpenEye/v1/cmd" ‖ sessionID ‖ nC ‖ typ ‖ duréeSecondes(4))
  iPhone ── Lock (0x20) { nC, duréeSecondes, sigP } ──▶ Mac   vérifie sigP, nC en attente, puis
@@ -293,6 +297,15 @@ Une commande ne réutilise **pas** la signature de session : chaque commande a s
 ```
 
 `Unlock (0x21)` suit le même schéma. Le **plafond de durée est appliqué par le Mac** (L5) : l'iPhone ne peut pas l'imposer.
+
+**Règles implémentées** (`OpenEyeCore/Session/Commands.swift`) :
+
+- **Écart avec la première version :** la demande de défi a son propre type `0x24`. Chaque type a une taille de corps exacte (§4.3), et la demande (8 octets) n'a pas la même taille que le défi (40 octets).
+- Un seul défi en attente par session. Il est **consommé par la première commande reçue**, valide ou non. Un défi de plus de 30 s est refusé.
+- Deux demandes de défi espacées de moins de 2 s : la seconde reçoit `CmdResult(refusé)` (L6).
+- `résultat` : 0 = verrouillé, 1 = déverrouillé, 2 = refusé. `heureFin` est en millisecondes Unix, 0 si sans objet.
+- Plafond : 15 min (`Limits.maxLockSeconds`, à valider). Le journal garde la durée **demandée**, celle que couvre `sigP` : la durée effective s'en déduit.
+- Le verrouillage survit à la fin de la session. Le Mac déverrouille seul à l'échéance (L5).
 
 ## 7. Notations
 

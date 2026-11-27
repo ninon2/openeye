@@ -5,7 +5,7 @@ public enum Sender: Sendable {
 }
 
 /// Types de paquets (docs/protocole.md §4.3).
-/// Les types 0x20–0x23 (extension J4) sont absents : ils sont donc refusés comme inconnus.
+/// Les types 0x20–0x24 portent les commandes Verrouiller / Déverrouiller (docs/protocole.md §6).
 public enum FrameType: UInt8, CaseIterable, Sendable {
     case pairRequest = 0x01
     case pairNonce = 0x02
@@ -25,6 +25,13 @@ public enum FrameType: UInt8, CaseIterable, Sendable {
     case journalAnchorRequest = 0x16
     case journalAnchorProof = 0x17
 
+    case lock = 0x20
+    case unlock = 0x21
+    case cmdChallenge = 0x22
+    case cmdResult = 0x23
+    /// Absent de la spec initiale : la demande de défi a son propre type, car chaque type a une taille exacte.
+    case cmdChallengeRequest = 0x24
+
     /// À partir de 0x10, le corps est chiffré et suivi d'un tag.
     public var isEncrypted: Bool { rawValue >= 0x10 }
 
@@ -32,10 +39,11 @@ public enum FrameType: UInt8, CaseIterable, Sendable {
     /// Le `switch` n'a pas de `default` : un nouveau type ne compile pas tant que son sens n'est pas décidé.
     public func canBeSent(by sender: Sender) -> Bool {
         switch self {
-        case .pairRequest, .pairReveal, .hello, .auth, .keepalive, .journalAnchorRequest:
+        case .pairRequest, .pairReveal, .hello, .auth, .keepalive, .journalAnchorRequest,
+             .lock, .unlock, .cmdChallengeRequest:
             return sender == .iphone
         case .pairNonce, .pairAccept, .challenge, .reject, .sessionReady, .heartbeat,
-             .videoParams, .videoFragment, .journalAnchorProof:
+             .videoParams, .videoFragment, .journalAnchorProof, .cmdChallenge, .cmdResult:
             return sender == .mac
         case .close:
             return true
@@ -58,6 +66,10 @@ public enum FrameType: UInt8, CaseIterable, Sendable {
         case .close: return exactly(8 + 1)
         case .journalAnchorRequest: return exactly(8 + 8)
         case .journalAnchorProof: return exactly(8 + 8 + 1 + 32)
+        case .lock, .unlock: return exactly(8 + 32 + 4 + 64)
+        case .cmdChallenge: return exactly(8 + 32)
+        case .cmdResult: return exactly(8 + 1 + 8)
+        case .cmdChallengeRequest: return exactly(8)
         case .videoParams:
             // ts, width, height, spsLen, au moins 1 octet de SPS, ppsLen, au moins 1 octet de PPS.
             return (8 + 2 + 2 + 2 + 1 + 2 + 1)...Limits.maxVideoParamsBody

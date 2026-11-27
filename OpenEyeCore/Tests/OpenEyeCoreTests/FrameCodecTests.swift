@@ -104,7 +104,7 @@ final class FrameCodecTests: XCTestCase {
 
     // MARK: - Étape 3 : type
 
-    /// Couvre aussi 0x20–0x23 : les commandes de l'extension J4 n'existent pas au MVP.
+    /// Couvre aussi 0x18–0x1F et 0x25 et au-delà, autour des commandes 0x20–0x24.
     func testRejectsEveryUnknownType() throws {
         for raw in UInt8.min...UInt8.max where FrameType(rawValue: raw) == nil {
             var data = try packet(.hello)

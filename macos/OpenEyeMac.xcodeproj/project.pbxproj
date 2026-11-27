@@ -9,6 +9,13 @@
 /* Begin PBXBuildFile section */
 		200000000000000000000001 /* OpenEyeMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003 /* OpenEyeMacApp.swift */; };
 		200000000000000000000002 /* OpenEyeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 200000000000000000000017 /* OpenEyeCore */; };
+		AC06AEFA30B4538A00510C59 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AEF930B4538A00510C59 /* Keychain.swift */; };
+		AC06AEFC30B4539400510C59 /* MacIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AEFB30B4539400510C59 /* MacIdentity.swift */; };
+		AC06AEFE30B453A600510C59 /* MacLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AEFD30B453A600510C59 /* MacLink.swift */; };
+		AC06AF0030B453AC00510C59 /* Indicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AEFF30B453AC00510C59 /* Indicator.swift */; };
+		AC06AF0230B453C700510C59 /* ScreenStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AF0130B453C700510C59 /* ScreenStreamer.swift */; };
+		AC06AF0430B453D000510C59 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AF0330B453D000510C59 /* JournalStore.swift */; };
+		AC06AF0630B4543000510C59 /* MacSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC06AF0530B4543000510C59 /* MacSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -16,6 +23,13 @@
 		200000000000000000000004 /* OpenEyeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenEyeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		200000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		200000000000000000000020 /* OpenEyeMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenEyeMac.entitlements; sourceTree = "<group>"; };
+		AC06AEF930B4538A00510C59 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		AC06AEFB30B4539400510C59 /* MacIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIdentity.swift; sourceTree = "<group>"; };
+		AC06AEFD30B453A600510C59 /* MacLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLink.swift; sourceTree = "<group>"; };
+		AC06AEFF30B453AC00510C59 /* Indicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Indicator.swift; sourceTree = "<group>"; };
+		AC06AF0130B453C700510C59 /* ScreenStreamer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenStreamer.swift; sourceTree = "<group>"; };
+		AC06AF0330B453D000510C59 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
+		AC06AF0530B4543000510C59 /* MacSession.swift */ = {isa = PBXFileReference; path = MacSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +58,13 @@
 				200000000000000000000003 /* OpenEyeMacApp.swift */,
 				200000000000000000000005 /* Info.plist */,
 				200000000000000000000020 /* OpenEyeMac.entitlements */,
+				AC06AEF930B4538A00510C59 /* Keychain.swift */,
+				AC06AEFB30B4539400510C59 /* MacIdentity.swift */,
+				AC06AEFD30B453A600510C59 /* MacLink.swift */,
+				AC06AEFF30B453AC00510C59 /* Indicator.swift */,
+				AC06AF0130B453C700510C59 /* ScreenStreamer.swift */,
+				AC06AF0330B453D000510C59 /* JournalStore.swift */,
+				AC06AF0530B4543000510C59 /* MacSession.swift */,
 			);
 			path = OpenEyeMac;
 			sourceTree = "<group>";
@@ -129,7 +150,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AC06AF0630B4543000510C59 /* MacSession.swift in Sources */,
+				AC06AF0230B453C700510C59 /* ScreenStreamer.swift in Sources */,
 				200000000000000000000001 /* OpenEyeMacApp.swift in Sources */,
+				AC06AEFA30B4538A00510C59 /* Keychain.swift in Sources */,
+				AC06AEFC30B4539400510C59 /* MacIdentity.swift in Sources */,
+				AC06AF0030B453AC00510C59 /* Indicator.swift in Sources */,
+				AC06AF0430B453D000510C59 /* JournalStore.swift in Sources */,
+				AC06AEFE30B453A600510C59 /* MacLink.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
