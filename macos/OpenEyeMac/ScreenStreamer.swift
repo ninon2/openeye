@@ -1,4 +1,7 @@
+import AVFoundation
+import CoreImage
 import CoreMedia
+import CoreText
 import Foundation
 import OpenEyeCore
 import ScreenCaptureKit
@@ -33,14 +36,34 @@ final class ScreenStreamer: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
     private let gate = NSLock()
     private var inFlight = 0
     private var skipUntilKeyFrame = false
+    /// Caméra incrustée en vignette, seulement pendant une activation demandée par le parent. Sur `queue`.
+    private var cameraFeed: CameraFeed?
+    private var compositor: VignetteCompositor?
+    #if DEBUG
+    private let usesTestPattern: Bool
+    /// Minuterie de la mire, sur `queue`.
+    private var patternTimer: DispatchSourceTimer?
+    #endif
 
     /// Les deux rappels sont appelés hors du fil principal.
+    /// `testPattern` n'existe qu'en Debug : un build Release capture toujours l'écran.
+    #if DEBUG
+    init(testPattern: Bool = false, onFrame: @escaping (EncodedFrame) -> Void, onSystemStop: @escaping (Error) -> Void) {
+        self.usesTestPattern = testPattern
+        self.onFrame = onFrame
+        self.onSystemStop = onSystemStop
+    }
+    #else
     init(onFrame: @escaping (EncodedFrame) -> Void, onSystemStop: @escaping (Error) -> Void) {
         self.onFrame = onFrame
         self.onSystemStop = onSystemStop
     }
+    #endif
 
     func start() async throws {
+        #if DEBUG
+        if usesTestPattern { return try startTestPattern() }
+        #endif
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }),
               display.width > 0
@@ -96,6 +119,19 @@ final class ScreenStreamer: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
             }
         }
         stream = nil
+        // La caméra ne survit jamais à la capture : fin de session = caméra éteinte.
+        queue.sync {
+            cameraFeed?.stop()
+            cameraFeed = nil
+            compositor = nil
+        }
+        #if DEBUG
+        // La minuterie s'arrête AVANT la libération de l'encodeur : plus aucune image après stop().
+        queue.sync {
+            patternTimer?.cancel()
+            patternTimer = nil
+        }
+        #endif
         releaseEncoder()
     }
 
@@ -119,6 +155,27 @@ final class ScreenStreamer: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         skipUntilKeyFrame = false
         inFlight += 1
         return true
+    }
+
+    /// Branche ou retire la caméra. L'ancienne source est arrêtée ici : jamais deux caméras ouvertes.
+    func setCamera(_ feed: CameraFeed?) {
+        queue.async {
+            self.cameraFeed?.stop()
+            self.cameraFeed = feed
+            if feed == nil { self.compositor = nil }
+            // L'iPhone voit le changement immédiatement, sans attendre la prochaine image clé.
+            self.forceKeyFrame = true
+        }
+    }
+
+    /// Retire la caméra et attend que ce soit fait : au retour, plus aucune image ne la contient.
+    func removeCamera() {
+        queue.sync {
+            cameraFeed?.stop()
+            cameraFeed = nil
+            compositor = nil
+            forceKeyFrame = true
+        }
     }
 
     /// La prochaine image sera une image clé, après une image jetée.
@@ -165,9 +222,19 @@ final class ScreenStreamer: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
     // MARK: - SCStreamOutput (sur `queue`)
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen, let encoder, Self.isComplete(sampleBuffer),
-              let image = sampleBuffer.imageBuffer
-        else { return }
+        guard type == .screen, Self.isComplete(sampleBuffer), let image = sampleBuffer.imageBuffer else { return }
+        encode(image, at: sampleBuffer.presentationTimeStamp)
+    }
+
+    /// Encodage commun à l'écran et à la mire (Debug) : le chemin H.264 est strictement le même. Sur `queue`.
+    private func encode(_ captured: CVImageBuffer, at time: CMTime) {
+        guard let encoder else { return }
+        // Caméra active : vignette en bas à droite, dans la même image. Sans image caméra, l'écran seul part.
+        var image = captured
+        if let frame = cameraFeed?.latestFrame() {
+            if compositor == nil { compositor = VignetteCompositor(width: width, height: height) }
+            image = compositor?.compose(screen: captured, camera: frame) ?? captured
+        }
         var properties: CFDictionary?
         if forceKeyFrame {
             forceKeyFrame = false
@@ -175,7 +242,7 @@ final class ScreenStreamer: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         }
         let (width, height) = (self.width, self.height)
         VTCompressionSessionEncodeFrame(
-            encoder, imageBuffer: image, presentationTimeStamp: sampleBuffer.presentationTimeStamp,
+            encoder, imageBuffer: image, presentationTimeStamp: time,
             duration: .invalid, frameProperties: properties, infoFlagsOut: nil
         ) { status, _, encoded in
             guard status == noErr, let encoded, let data = Self.bytes(of: encoded) else { return }
@@ -235,3 +302,235 @@ final class ScreenStreamer: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         return try? VideoParams(width: width, height: height, sps: sets[0], pps: sets[1])
     }
 }
+
+#if DEBUG
+// MARK: - Mire de test (Debug uniquement, absente des builds Release)
+
+/// Remplace la capture quand macOS la refuse (Mac sans droits administrateur).
+/// L'écran n'est jamais lu : l'image est dessinée ici, puis suit exactement le même encodage.
+/// Le texte « MIRE DE TEST » est incrusté dans l'image : le parent ne peut pas la prendre pour l'écran.
+extension ScreenStreamer {
+    static let testPatternWidth = 960
+    static let testPatternHeight = 600
+
+    fileprivate func startTestPattern() throws {
+        let (width, height) = (Self.testPatternWidth, Self.testPatternHeight)
+        let newEncoder = try Self.makeEncoder(width: Int32(width), height: Int32(height))
+        queue.sync {
+            encoder = newEncoder
+            self.width = width
+            self.height = height
+            var index = 0
+            let timer = DispatchSource.makeTimerSource(queue: queue)
+            // 10 images par seconde, comme la capture d'écran.
+            timer.schedule(deadline: .now(), repeating: .milliseconds(100))
+            timer.setEventHandler { [weak self] in
+                index += 1
+                guard let self,
+                      let image = Self.testPatternImage(width: width, height: height, frame: index, date: Date())
+                else { return }
+                self.encode(image, at: CMTime(value: CMTimeValue(index), timescale: 10))
+            }
+            patternTimer = timer
+            timer.resume()
+        }
+    }
+
+    /// Barres de couleur, carré mobile (le flux est vivant) et heure à la milliseconde (mesure de latence).
+    static func testPatternImage(width: Int, height: Int, frame: Int, date: Date) -> CVPixelBuffer? {
+        var buffer: CVPixelBuffer?
+        let attributes = [kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary] as CFDictionary
+        guard CVPixelBufferCreate(
+            kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, attributes, &buffer
+        ) == kCVReturnSuccess, let buffer else { return nil }
+
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer), width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer), space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+
+        let (w, h) = (CGFloat(width), CGFloat(height))
+        let bars: [(CGFloat, CGFloat, CGFloat)] = [(1, 1, 1), (1, 1, 0), (0, 1, 1), (0, 1, 0), (1, 0, 1), (1, 0, 0), (0, 0, 1)]
+        let barWidth = w / CGFloat(bars.count)
+        for (index, color) in bars.enumerated() {
+            context.setFillColor(red: color.0 * 0.75, green: color.1 * 0.75, blue: color.2 * 0.75, alpha: 1)
+            context.fill(CGRect(x: CGFloat(index) * barWidth, y: 0, width: barWidth + 1, height: h))
+        }
+
+        let side: CGFloat = 60
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: CGFloat(frame * 8).truncatingRemainder(dividingBy: w - side), y: 40, width: side, height: side))
+
+        context.setFillColor(gray: 0, alpha: 0.85)
+        context.fill(CGRect(x: 0, y: h - 200, width: w, height: 160))
+        let time = date.formatted(
+            .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits)
+                .secondFraction(.fractional(3))
+        )
+        drawText("MIRE DE TEST — ce n'est pas l'écran du Mac", size: 34, at: CGPoint(x: 30, y: h - 90), in: context)
+        drawText("\(time)   ·   image n° \(frame)", size: 30, at: CGPoint(x: 30, y: h - 150), in: context)
+        return buffer
+    }
+
+    fileprivate static func drawText(_ text: String, size: CGFloat, at point: CGPoint, in context: CGContext) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: CTFontCreateWithName("Menlo-Bold" as CFString, size, nil),
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: 1, alpha: 1),
+        ]
+        context.textPosition = point
+        CTLineDraw(CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes)), context)
+    }
+}
+#endif
+
+// MARK: - Caméra (extension webcam, désactivée par défaut)
+
+/// Source d'images caméra lue par l'encodeur : seule la DERNIÈRE image est gardée, en mémoire.
+protocol CameraFeed: AnyObject, Sendable {
+    func latestFrame() -> CVPixelBuffer?
+    func stop()
+}
+
+/// Webcam du Mac, ouverte seulement pendant une activation signée par le parent.
+/// 640 × 480 au plus (minimisation), sans micro, rien n'est enregistré. macOS allume aussi son voyant vert.
+final class CameraSource: NSObject, CameraFeed, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
+    private let session = AVCaptureSession()
+    private let queue = DispatchQueue(label: "openeye.camera")
+    private let lock = NSLock()
+    private var latest: CVPixelBuffer?
+
+    /// Ouvre la caméra si macOS l'autorise et si un appareil existe, sinon nil. Bloquant : hors du fil principal.
+    static func start() -> CameraSource? {
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized,
+              let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device)
+        else { return nil }
+        let source = CameraSource()
+        let output = AVCaptureVideoDataOutput()
+        output.alwaysDiscardsLateVideoFrames = true
+        output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        output.setSampleBufferDelegate(source, queue: source.queue)
+
+        source.session.beginConfiguration()
+        if source.session.canSetSessionPreset(.vga640x480) { source.session.sessionPreset = .vga640x480 }
+        guard source.session.canAddInput(input), source.session.canAddOutput(output) else {
+            source.session.commitConfiguration()
+            return nil
+        }
+        source.session.addInput(input)
+        source.session.addOutput(output)
+        source.session.commitConfiguration()
+        source.session.startRunning()
+        return source.session.isRunning ? source : nil
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let image = sampleBuffer.imageBuffer else { return }
+        lock.lock()
+        latest = image
+        lock.unlock()
+    }
+
+    func latestFrame() -> CVPixelBuffer? {
+        lock.lock()
+        defer { lock.unlock() }
+        return latest
+    }
+
+    func stop() {
+        session.stopRunning()
+        lock.lock()
+        latest = nil
+        lock.unlock()
+    }
+}
+
+/// Incruste la caméra en vignette (30 % de la largeur, bas droit, cadre blanc) dans l'image envoyée.
+/// Une seule image H.264 : le protocole vidéo ne change pas. Utilisé sur la file de capture uniquement.
+final class VignetteCompositor {
+    private let context = CIContext(options: [.cacheIntermediates: false])
+    private let width: Int
+    private let height: Int
+    private var pool: CVPixelBufferPool?
+
+    init(width: Int, height: Int) {
+        self.width = width
+        self.height = height
+        let attributes: [CFString: Any] = [
+            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey: width, kCVPixelBufferHeightKey: height,
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
+        ]
+        CVPixelBufferPoolCreate(kCFAllocatorDefault, nil, attributes as CFDictionary, &pool)
+    }
+
+    func compose(screen: CVImageBuffer, camera: CVImageBuffer) -> CVPixelBuffer? {
+        guard let pool else { return nil }
+        var buffer: CVPixelBuffer?
+        guard CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &buffer) == kCVReturnSuccess,
+              let output = buffer
+        else { return nil }
+
+        let base = CIImage(cvImageBuffer: screen)
+        let cam = CIImage(cvImageBuffer: camera)
+        let scale = CGFloat(width) * 0.3 / max(cam.extent.width, 1)
+        let scaled = cam.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        let margin: CGFloat = 12
+        let placed = scaled.transformed(by: CGAffineTransform(
+            translationX: CGFloat(width) - scaled.extent.width - margin - scaled.extent.minX,
+            y: margin - scaled.extent.minY
+        ))
+        let frame = CIImage(color: .white).cropped(to: placed.extent.insetBy(dx: -3, dy: -3))
+        context.render(placed.composited(over: frame.composited(over: base)), to: output)
+        return output
+    }
+}
+
+#if DEBUG
+/// Remplace la caméra quand macOS en refuse l'accès (Debug uniquement) : vignette générée, explicite.
+final class CameraTestPattern: CameraFeed, @unchecked Sendable {
+    private let lock = NSLock()
+    private var frame = 0
+
+    func latestFrame() -> CVPixelBuffer? {
+        lock.lock()
+        frame += 1
+        let index = frame
+        lock.unlock()
+        return ScreenStreamer.cameraPatternImage(frame: index, date: Date())
+    }
+
+    func stop() {}
+}
+
+extension ScreenStreamer {
+    /// 320 × 240 : fond sombre, « MIRE CAMÉRA », raison et heure. Aucune image réelle.
+    static func cameraPatternImage(frame: Int, date: Date) -> CVPixelBuffer? {
+        let (width, height) = (320, 240)
+        var buffer: CVPixelBuffer?
+        let attributes = [kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary] as CFDictionary
+        guard CVPixelBufferCreate(
+            kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, attributes, &buffer
+        ) == kCVReturnSuccess, let buffer else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer), width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer), space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+        context.setFillColor(red: 0.15, green: 0.15, blue: 0.2, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.setFillColor(red: 0.9, green: 0.5, blue: 0.1, alpha: 1)
+        context.fill(CGRect(x: CGFloat(frame * 4 % (width - 30)), y: 20, width: 30, height: 30))
+        let time = date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
+        drawText("MIRE CAMÉRA", size: 26, at: CGPoint(x: 16, y: 180), in: context)
+        drawText("accès caméra refusé", size: 18, at: CGPoint(x: 16, y: 140), in: context)
+        drawText(time, size: 18, at: CGPoint(x: 16, y: 100), in: context)
+        return buffer
+    }
+}
+#endif

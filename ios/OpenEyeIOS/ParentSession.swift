@@ -30,6 +30,8 @@ final class ParentSession: ObservableObject {
     @Published private(set) var commandNotice: String?
     /// Une commande est en cours : les boutons sont désactivés jusqu'au résultat.
     @Published private(set) var commandInFlight = false
+    /// Où en est la commande : « Face ID… » ou « Envoi au Mac… ». Lu par l'interface.
+    @Published private(set) var commandStepText = ""
 
     let renderer = VideoRenderer()
 
@@ -163,7 +165,7 @@ final class ParentSession: ObservableObject {
             finishPairing(accept)
         } else {
             status = "Code confirmé. Confirmez aussi sur le Mac…"
-            deadline = clock.now.advanced(by: .seconds(Int64(Limits.pairingLifetimeSeconds)))
+            deadline = clock.now.advanced(by: Limits.pairingConfirmationLifetime)
         }
     }
 
@@ -183,7 +185,7 @@ final class ParentSession: ObservableObject {
                     link.send(reveal)
                     phase = .confirmCode(code)
                     status = "Comparez ce code avec celui affiché sur le Mac."
-                    deadline = clock.now.advanced(by: .seconds(Int64(Limits.pairingLifetimeSeconds)))
+                    deadline = clock.now.advanced(by: Limits.pairingConfirmationLifetime)
                 case .failure:
                     fail("Appairage annulé (Face ID refusé ou message invalide).", to: .unpaired)
                 }
@@ -242,7 +244,7 @@ final class ParentSession: ObservableObject {
     func startViewing() {
         guard phase == .paired || phase == .unreachable else { return }
         guard let mac = macIdentity,
-              let signer = ParentSigner.load()?.withReason("Autoriser le visionnage de l'écran du Mac")
+              let signer = ParentSigner.load()?.withReason("Autoriser le visionnage de l'écran et de la caméra du Mac")
         else { return fail("Clé introuvable : appairez à nouveau le Mac.", to: .unpaired) }
         resetSession()
         attempt += 1
@@ -432,10 +434,12 @@ final class ParentSession: ObservableObject {
     // MARK: - Commandes Verrouiller / Déverrouiller (docs/protocole.md §6)
 
     /// Demande un défi neuf au Mac. Face ID vient ensuite, sur ce défi : jamais de signature réutilisée (L8).
-    func send(_ kind: CommandKind, minutes: UInt32 = 0) {
+    /// `seconds` : durée demandée pour Verrouiller. Le Mac applique son propre plafond.
+    func send(_ kind: CommandKind, seconds: UInt32 = 0) {
         guard phase == .viewing, sessionReady, command == nil else { return }
-        command = (kind, minutes * 60, .waitingForChallenge)
+        command = (kind, seconds, .waitingForChallenge)
         commandInFlight = true
+        commandStepText = "Demande au Mac…"
         commandNotice = nil
         commandDeadline = clock.now.advanced(by: Limits.commandChallengeLifetime)
         seal(.cmdChallengeRequest)
@@ -445,13 +449,17 @@ final class ParentSession: ObservableObject {
         guard let pending = command, let channel,
               let challenge = try? CommandChallenge(payload: payload)
         else { return finishCommand("Défi invalide : aucune commande envoyée.") }
-        let reason = pending.kind == .lock
-            ? "Verrouiller l'écran du Mac pendant \(pending.seconds / 60) min"
-            : "Déverrouiller l'écran du Mac"
+        // Texte affiché par Face ID : le parent sait exactement ce qu'il signe.
+        let reason: String
+        switch pending.kind {
+        case .lock: reason = "Verrouiller l'écran du Mac pendant \(Self.describe(seconds: pending.seconds))"
+        case .unlock: reason = "Déverrouiller l'écran du Mac"
+        }
         guard let signer = ParentSigner.load()?.withReason(reason) else {
             return finishCommand("Clé introuvable : aucune commande envoyée.")
         }
         command?.step = .signing
+        commandStepText = "Face ID…"
         let sessionID = channel.sessionID
         let current = attempt
         Task {
@@ -468,6 +476,7 @@ final class ParentSession: ObservableObject {
             switch result {
             case let .success(signed):
                 command?.step = .waitingForResult
+                commandStepText = "Envoi au Mac…"
                 commandDeadline = clock.now.advanced(by: .seconds(10))
                 seal(pending.kind.frameType, payload: signed.payload)
             case .failure:
@@ -489,6 +498,11 @@ final class ParentSession: ObservableObject {
         case .refused:
             finishCommand("Le Mac a refusé la commande.")
         }
+    }
+
+    /// « 30 s », « 5 min ».
+    static func describe(seconds: UInt32) -> String {
+        seconds < 60 ? "\(seconds) s" : "\(seconds / 60) min"
     }
 
     private func finishCommand(_ message: String?) {

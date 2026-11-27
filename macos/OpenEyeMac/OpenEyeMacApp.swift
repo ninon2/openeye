@@ -89,7 +89,7 @@ private struct IdlePanel: View {
         VStack(alignment: .leading, spacing: 10) {
             if let parent = session.parent {
                 Label("iPhone appairé : \(parent.shortFingerprint)", systemImage: "checkmark.shield")
-                Text("Quand le parent ouvre le visionnage, un bandeau rouge s'affiche en haut de l'écran pendant tout le partage.")
+                Text("Quand le parent ouvre le visionnage, il voit votre écran et votre caméra en direct. Un bandeau rouge s'affiche en haut de l'écran pendant tout le partage.")
                     .font(.callout).foregroundStyle(.secondary)
                 HStack {
                     Button("Appairer un autre iPhone") { session.startPairing() }
@@ -176,15 +176,35 @@ private struct QRCodeView: View {
 private struct SharingPanel: View {
     @ObservedObject var session: MacSession
 
+    #if DEBUG
+    private var sendsTestPattern: Bool { session.sendsTestPattern }
+    #else
+    private var sendsTestPattern: Bool { false }
+    #endif
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if session.isCapturing {
+            if session.isCapturing && sendsTestPattern {
+                Label("Mire de test envoyée au parent : votre écran n'est pas partagé", systemImage: "testtube.2")
+                    .font(.headline).foregroundStyle(.orange)
+                Text("Image générée, rien n'est lu à l'écran. Images envoyées : \(session.framesSent)")
+                    .font(.callout).foregroundStyle(.secondary)
+            } else if session.isCapturing {
                 Label("Votre écran est partagé avec le parent", systemImage: "eye.fill")
                     .font(.headline).foregroundStyle(.red)
-                Text("Écran seul : ni micro, ni webcam, rien n'est enregistré. Images envoyées : \(session.framesSent)")
+                Text("Sans micro, rien n'est enregistré. Images envoyées : \(session.framesSent)")
                     .font(.callout).foregroundStyle(.secondary)
             } else {
                 ProgressView(session.status)
+            }
+            if session.cameraActive {
+                Label(
+                    session.cameraIsTestPattern
+                        ? "Caméra : accès refusé, une mire caméra est envoyée à la place"
+                        : "Votre caméra est partagée avec le parent pendant tout le visionnage",
+                    systemImage: "video.fill"
+                )
+                .font(.headline).foregroundStyle(.red)
             }
             Button("Arrêter le partage", role: .destructive) { Task { await session.stopSharing() } }
                 .disabled(session.phase == .stopping)
