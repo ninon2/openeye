@@ -242,22 +242,49 @@ final class PairingTests: XCTestCase {
         assertFails(.refusedByUser) { try phone.finish(accept: Data(), codesMatch: false) }
     }
 
+    /// 120 s pour scanner le QR. Après une demande valide, 5 min pour Face ID et la comparaison des codes.
     func testEveryMacStepExpires() throws {
-        let late = t0.advanced(by: .seconds(120))
-
+        // Scan : la demande arrive à 120 s, trop tard. À 119 s, elle passe.
         let first = newMac()
-        let request = try newParent(for: first).makeRequest()
-        assertFails(.expired) { try first.makeNonce(request: request, now: late) }
+        assertFails(.expired) {
+            try first.makeNonce(request: try newParent(for: first).makeRequest(), now: t0.advanced(by: .seconds(120)))
+        }
+        let onTime = newMac()
+        XCTAssertNoThrow(try onTime.makeNonce(
+            request: try newParent(for: onTime).makeRequest(), now: t0.advanced(by: .seconds(119))
+        ))
 
-        let second = newMac(), phone2 = try newParent(for: second)
-        let nonce2 = try second.makeNonce(request: phone2.makeRequest(), now: t0)
-        let reveal2 = try phone2.reveal(nonce: nonce2).reveal
-        assertFails(.expired) { try second.verify(reveal: reveal2, now: late) }
+        // Demande à 100 s : échéance à 100 + 300 = 400 s, bien au-delà des 120 s du QR.
+        let requestedAt = t0.advanced(by: .seconds(100))
+        func afterRequest() throws -> (mac: MacPairing, phone: ParentPairing, reveal: Data) {
+            let computer = newMac(), phone = try newParent(for: computer)
+            let nonce = try computer.makeNonce(request: phone.makeRequest(), now: requestedAt)
+            XCTAssertEqual(computer.deadline, requestedAt.advanced(by: Limits.pairingConfirmationLifetime))
+            return (computer, phone, try phone.reveal(nonce: nonce).reveal)
+        }
 
-        let third = newMac(), phone3 = try newParent(for: third)
-        let nonce3 = try third.makeNonce(request: phone3.makeRequest(), now: t0)
-        _ = try third.verify(reveal: phone3.reveal(nonce: nonce3).reveal, now: t0)
-        assertFails(.expired) { try third.confirm(codesMatch: true, now: late) }
+        let slowButValid = try afterRequest()
+        XCTAssertNoThrow(try slowButValid.mac.verify(reveal: slowButValid.reveal, now: t0.advanced(by: .seconds(250))))
+        XCTAssertNoThrow(try slowButValid.mac.confirm(codesMatch: true, now: t0.advanced(by: .seconds(399))))
+
+        let lateReveal = try afterRequest()
+        assertFails(.expired) { try lateReveal.mac.verify(reveal: lateReveal.reveal, now: t0.advanced(by: .seconds(400))) }
+
+        let lateClick = try afterRequest()
+        _ = try lateClick.mac.verify(reveal: lateClick.reveal, now: requestedAt)
+        assertFails(.expired) { try lateClick.mac.confirm(codesMatch: true, now: t0.advanced(by: .seconds(400))) }
+    }
+
+    /// Attaque : une demande forgée (sans le secret du QR) ne doit PAS prolonger la tentative.
+    func testForgedRequestDoesNotExtendTheDeadline() throws {
+        let computer = newMac()
+        let qrDeadline = computer.deadline
+        let intruder = ParentPairing(parent: TestSigner(), qr: QRPayload(
+            pairingID: try QRPayload(text: try XCTUnwrap(computer.qrText), now: wall).pairingID,
+            secret: SymmetricKey(size: .bits256), expiry: wall + 60, macIdentity: mac.publicKey
+        ))
+        assertFails(.invalidMAC) { try computer.makeNonce(request: intruder.makeRequest(), now: t0) }
+        XCTAssertEqual(computer.deadline, qrDeadline)
     }
 
     func testCancelledFaceIDStopsPairing() throws {

@@ -28,8 +28,11 @@ public enum Limits {
 
     // MARK: Appairage (tâche 21)
 
-    /// Durée de vie d'un QR d'appairage, en secondes (STRIDE S4).
+    /// Durée de vie d'un QR d'appairage, en secondes (STRIDE S4) : délai pour le SCANNER, secret visible à l'écran.
     public static let pairingLifetimeSeconds: UInt64 = 120
+    /// Après une demande valide (secret du QR prouvé), délai pour Face ID et la comparaison des codes.
+    /// PROPOSITION à valider : 5 minutes. Le secret du QR est déjà consommé, plus rien n'est photographiable.
+    public static let pairingConfirmationLifetime: Duration = .seconds(300)
 
     // MARK: Vidéo (tâche 26)
 
