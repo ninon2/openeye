@@ -172,7 +172,7 @@ private struct PairedView: View {
                 Label("Voir l'écran (Face ID)", systemImage: "faceid")
             }
             .buttonStyle(.borderedProminent)
-            Text("L'enfant voit un bandeau rouge sur son écran pendant tout le visionnage. Rien n'est enregistré.")
+            Text("Vous voyez l'écran et la caméra du Mac en direct. L'enfant voit un bandeau rouge pendant tout le visionnage. Rien n'est enregistré.")
                 .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.secondary)
         }
         .padding()
@@ -206,7 +206,7 @@ private struct ViewerView: View {
             } else if let notice = session.captureNotice, session.hasVideo {
                 Label(notice, systemImage: "info.circle").font(.callout)
             } else {
-                Label("En direct · écran seul, rien n'est enregistré", systemImage: "dot.radiowaves.left.and.right")
+                Label("En direct · écran et caméra, rien n'est enregistré", systemImage: "dot.radiowaves.left.and.right")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             LockControls(session: session)
@@ -222,12 +222,15 @@ private struct ViewerView: View {
 private struct LockControls: View {
     @ObservedObject var session: ParentSession
 
+    /// 30 s pour les essais et la démo ; le Mac plafonne à 15 min.
+    private let lockDurations: [UInt32] = [30, 5 * 60, 10 * 60, 15 * 60]
+
     var body: some View {
         VStack(spacing: 8) {
             HStack {
                 Menu {
-                    ForEach([5, 10, 15], id: \.self) { minutes in
-                        Button("\(minutes) min") { session.send(.lock, minutes: UInt32(minutes)) }
+                    ForEach(lockDurations, id: \.self) { seconds in
+                        Button(ParentSession.describe(seconds: seconds)) { session.send(.lock, seconds: seconds) }
                     }
                 } label: {
                     Label("Verrouiller", systemImage: "lock.fill")
@@ -242,7 +245,7 @@ private struct LockControls: View {
             }
             .disabled(session.commandInFlight || session.phase != .viewing)
             if session.commandInFlight {
-                ProgressView("Commande en cours (Face ID)…").font(.callout)
+                ProgressView(session.commandStepText).font(.callout)
             } else if let notice = session.commandNotice {
                 Text(notice).font(.callout).multilineTextAlignment(.center)
             }

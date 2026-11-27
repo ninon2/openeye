@@ -9,6 +9,19 @@ final class Indicator {
 
     var isVisible: Bool { panel?.isVisible ?? false }
 
+    /// Caméra montrée au parent : le bandeau le dit, plus grand. À appeler AVANT d'ouvrir la caméra.
+    func setCamera(_ on: Bool) {
+        guard let panel else { return }
+        let size = NSSize(width: on ? 420 : 300, height: 30)
+        if let screen = NSScreen.main {
+            panel.setFrame(NSRect(
+                origin: NSPoint(x: screen.visibleFrame.midX - size.width / 2, y: screen.visibleFrame.maxY - size.height),
+                size: size
+            ), display: true)
+        }
+        panel.contentView = NSHostingView(rootView: IndicatorBanner(camera: on).frame(width: size.width, height: size.height))
+    }
+
     /// Renvoie faux si le bandeau n'a pas pu être affiché : la capture ne doit alors pas démarrer.
     func show() -> Bool {
         if let panel, panel.isVisible { return true }
@@ -40,13 +53,17 @@ final class Indicator {
 }
 
 private struct IndicatorBanner: View {
+    var camera = false
+
     var body: some View {
-        Label("Écran partagé avec le parent", systemImage: "eye.fill")
+        Label(camera ? "Écran ET caméra partagés avec le parent" : "Écran partagé avec le parent",
+              systemImage: camera ? "video.fill" : "eye.fill")
             .font(.callout.bold())
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.red, in: RoundedRectangle(cornerRadius: 8))
-            .accessibilityLabel("Écran actuellement partagé avec le parent")
+            .accessibilityLabel(camera ? "Écran et caméra actuellement partagés avec le parent"
+                                : "Écran actuellement partagé avec le parent")
     }
 }
 

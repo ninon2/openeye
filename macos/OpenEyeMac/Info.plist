@@ -7,6 +7,8 @@
 		<string>_openeye._tcp</string>
 		<string>_openeye._udp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>OpenEye montre la caméra au parent seulement quand il la demande (Face ID), pour une durée limitée, avec un indicateur visible.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>OpenEye utilise le réseau local pour communiquer avec l’appareil appairé.</string>
 	<key>NSScreenCaptureUsageDescription</key>

@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreGraphics
 import CryptoKit
 import Foundation
@@ -26,6 +27,14 @@ final class MacSession: ObservableObject {
     @Published private(set) var framesSent = 0
     /// Fin du verrouillage en cours. Il survit à la session : couper la connexion ne débloque pas (L5).
     @Published private(set) var lockedUntil: Date?
+    #if DEBUG
+    /// Vrai pendant un visionnage qui envoie la mire, faute d'autorisation de capture (Debug uniquement).
+    @Published private(set) var sendsTestPattern = false
+    #endif
+    /// Caméra montrée au parent en vignette, pendant tout le visionnage. Ne survit jamais à la session.
+    @Published private(set) var cameraActive = false
+    /// Vrai si la vignette caméra est une mire (accès caméra refusé, Debug uniquement).
+    @Published private(set) var cameraIsTestPattern = false
 
     let signer: MacSigner
     let journal: JournalStore
@@ -187,6 +196,9 @@ final class MacSession: ObservableObject {
         do {
             if packet[packet.startIndex + 3] == FrameType.pairRequest.rawValue {
                 let reply = try pairing.makeNonce(request: packet, now: now)
+                // Demande valide : 5 min pour Face ID et la comparaison, au lieu des 120 s du QR.
+                pairingExpiresAt = pairing.deadline
+                pairingDeadline = Date().addingTimeInterval(TimeInterval(now.duration(to: pairing.deadline).components.seconds))
                 connectionDeadline = nil
                 qrText = nil // Le secret est consommé : le QR disparaît.
                 link.send(reply)
@@ -263,7 +275,19 @@ final class MacSession: ObservableObject {
         ))
         seal(.sessionReady)
 
-        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+        // Autorisation accordée : TOUJOURS l'écran réel. Refusée : le refus est journalisé dans tous les cas.
+        let screenAllowed = CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess()
+        #if DEBUG
+        // Debug : la mire prend le relais, sans rien lire à l'écran. Figée pour toute la session.
+        if !screenAllowed { journal.append(.permissionDenied) }
+        let testPattern = !screenAllowed
+        sendsTestPattern = testPattern
+        #else
+        let testPattern = false
+        #endif
+
+        // Release : refus = échec sûr, rien n'est partagé.
+        guard screenAllowed || testPattern else {
             journal.append(.permissionDenied)
             captureState = .permissionDenied
             sendHeartbeat()
@@ -279,21 +303,26 @@ final class MacSession: ObservableObject {
             return
         }
 
-        let streamer = ScreenStreamer(
-            onFrame: { [weak self] frame in
-                DispatchQueue.main.async { self?.send(frame) }
-            },
-            onSystemStop: { [weak self] _ in
-                DispatchQueue.main.async { self?.captureStoppedBySystem() }
-            }
-        )
+        // L'indicateur vient d'être affiché, AVANT la mire comme avant l'écran : même règle.
+        let onFrame: (EncodedFrame) -> Void = { [weak self] frame in
+            DispatchQueue.main.async { self?.send(frame) }
+        }
+        let onSystemStop: (Error) -> Void = { [weak self] _ in
+            DispatchQueue.main.async { self?.captureStoppedBySystem() }
+        }
+        #if DEBUG
+        let streamer = ScreenStreamer(testPattern: testPattern, onFrame: onFrame, onSystemStop: onSystemStop)
+        #else
+        let streamer = ScreenStreamer(onFrame: onFrame, onSystemStop: onSystemStop)
+        #endif
         self.streamer = streamer
         status = "Démarrage de la capture…"
         startTask = Task {
             do {
                 try await streamer.start()
             } catch {
-                captureState = CGPreflightScreenCaptureAccess() ? .stopped : .permissionDenied
+                // Un échec de la mire n'est pas un refus d'autorisation.
+                captureState = testPattern || CGPreflightScreenCaptureAccess() ? .stopped : .permissionDenied
                 if captureState == .permissionDenied { journal.append(.permissionDenied) }
                 sendHeartbeat()
                 startTask = nil
@@ -305,7 +334,11 @@ final class MacSession: ObservableObject {
             captureState = .running
             isCapturing = true
             journal.append(.captureStarted, data: JournalData.capture(sessionID: channel.sessionID))
-            status = "Écran partagé avec le parent"
+            // Écran ET caméra pendant tout le visionnage : qui est devant le Mac, et ce qu'il fait.
+            // Tâche séparée : un arrêt n'attend jamais la réponse à la demande d'accès caméra.
+            Task { await startCamera() }
+            status = testPattern ? "Mire de test partagée avec le parent (votre écran n'est pas envoyé)"
+                : "Écran partagé avec le parent"
             sendHeartbeat()
         }
     }
@@ -393,6 +426,43 @@ final class MacSession: ObservableObject {
         lockScreen.hide()
     }
 
+    // MARK: - Caméra (extension webcam)
+
+    /// Autorisation macOS d'abord (l'enfant voit la demande), puis caméra réelle, en vignette.
+    /// Refus : mire caméra en Debug, écran seul en Release. Rien n'est enregistré.
+    private func startCamera() async {
+        guard streamer != nil, !cameraActive else { return }
+        // Bandeau mis à jour AVANT d'ouvrir la caméra : l'enfant est prévenu d'abord.
+        indicator.setCamera(true)
+        cameraActive = true
+        var allowed = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
+        if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
+            allowed = await AVCaptureDevice.requestAccess(for: .video)
+        }
+        var feed: CameraFeed? = allowed ? await Task.detached { CameraSource.start() }.value : nil
+        #if DEBUG
+        if feed == nil {
+            feed = CameraTestPattern()
+            cameraIsTestPattern = true
+        }
+        #endif
+        // Visionnage terminé pendant l'attente, ou caméra indisponible (Release) : écran seul.
+        guard let feed, cameraActive, let streamer else {
+            feed?.stop()
+            stopCamera()
+            return
+        }
+        streamer.setCamera(feed)
+    }
+
+    /// Caméra coupée PUIS bandeau remis à « écran seul » : jamais de caméra sans bandeau qui l'annonce.
+    private func stopCamera() {
+        streamer?.removeCamera()
+        cameraActive = false
+        cameraIsTestPattern = false
+        indicator.setCamera(false)
+    }
+
     /// Image encodée : VideoParams avant chaque image clé, puis fragments chiffrés.
     private func send(_ frame: EncodedFrame) {
         defer { streamer?.frameHandled() }
@@ -451,6 +521,8 @@ final class MacSession: ObservableObject {
         isEnding = true
         defer { isEnding = false }
         phase = .stopping
+        // La caméra s'arrête en premier, quelle que soit la raison de la fin.
+        stopCamera()
 
         if notifyPeer { seal(.close, payload: CloseMessage(reason: reason).payload) }
         // Un démarrage en cours se termine d'abord : sinon il pourrait capturer après l'arrêt.
@@ -472,6 +544,9 @@ final class MacSession: ObservableObject {
             journal.append(.captureStopped, data: JournalData.capture(sessionID: sessionID))
         }
         isCapturing = false
+        #if DEBUG
+        sendsTestPattern = false
+        #endif
         captureState = .stopped
         indicator.hide()
 
