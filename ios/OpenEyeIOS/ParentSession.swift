@@ -189,7 +189,13 @@ final class ParentSession: ObservableObject {
                 }
             }
         case .pairAccept:
-            if userConfirmedCode { finishPairing(packet) } else { pendingAccept = packet }
+            if userConfirmedCode {
+                finishPairing(packet)
+            } else {
+                // Vérifié seulement au clic du parent, dans finishPairing : rien n'est enregistré avant.
+                pendingAccept = packet
+                status = "Le Mac a confirmé. Vérifiez le code, puis confirmez ici."
+            }
         case .reject:
             fail("Le Mac a refusé l'appairage.", to: .unpaired)
         default:
@@ -522,7 +528,11 @@ final class ParentSession: ObservableObject {
     private func disconnected() {
         switch mode {
         case .pairing:
-            if pairing != nil { fail("Connexion au Mac perdue pendant l'appairage.", to: .unpaired) }
+            // PairAccept déjà reçu : la signature du Mac suffit, la connexion n'est plus utile.
+            // Il reste la décision du parent, bornée par `deadline`. Sans PairAccept, l'appairage échoue.
+            if pairing != nil, pendingAccept == nil {
+                fail("Connexion au Mac perdue pendant l'appairage.", to: .unpaired)
+            }
         case .session:
             if sessionReady {
                 // Perte de contact : causes multiples possibles, on ne conclut rien de plus.
